@@ -1,0 +1,193 @@
+# Anchorless configuration.
+#
+# Copy this to config.toml and change what you like. Every setting is optional:
+# anything left out uses the default shown here.
+#
+# Any setting can also come from the environment as ANCHORLESS__<SECTION>__<KEY>,
+# e.g. ANCHORLESS__LOCATION__CITY=Springfield. Use that for anything personal
+# (like your location) so this file can be shared.
+
+[channel]
+name = "NEWS"                 # shown in the logo and in your TV guide
+number = "98"
+id = "anchorless.news"        # XMLTV channel id
+timezone = "America/Chicago"  # for the on-screen clock and the guide
+guide_title = "Anchorless News"
+guide_description = "Around-the-clock headlines from national and world news outlets."
+
+[location]
+# For local news (coming soon). Best set from the environment instead:
+# city = "Springfield"
+# region = "IL"
+# country = "US"
+
+[video]
+width = 854
+height = 480
+fps = 24
+encoder = "x264"              # "x264" (CPU) or "vaapi" (Intel/AMD GPU)
+vaapi_device = "/dev/dri/renderD128"
+vaapi_rc = "vbr"              # "cqp" for older Intel GPUs (i965 driver) that reject bitrates
+vaapi_qp = 24                 # quality for "cqp" (lower = better)
+bitrate = "1500k"
+maxrate = "2000k"
+gop_seconds = 2               # a keyframe every 2 s: how fast a joining viewer can start
+x264_preset = "veryfast"
+x264_threads = 0              # 0 = automatic
+
+[audio]
+music_dir = "/music"          # background music (.mp3), shuffled; missing folder = silence
+volume = 0.5
+bitrate = "128k"
+
+[stream]
+host = "0.0.0.0"
+port = 9798
+lead_seconds = 10             # rendered ahead for a new viewer (Samsung TVs buffer ~10 s)
+idle_seconds = 60             # stop encoding this long after the last viewer leaves
+
+[rundown]
+refresh_minutes = 10          # how often the sources are fetched
+page_seconds = 12             # how long each story stays on screen
+intro_seconds = 5             # segment title card (0 = none)
+transition_seconds = 0.4      # crossfade between pages (0 = cut)
+max_story_age_hours = 12
+same_story_similarity = 0.5   # headline overlap that makes two items the same story
+same_story_text_similarity = 0.32
+
+# The newscast: segments play in order, then it loops. A story appears in the
+# first segment it fits and nowhere else. Leave out scope/category to take any story.
+[[rundown.segment]]
+name = "TOP STORIES"
+stories = 4
+
+[[rundown.segment]]
+name = "NATIONAL"
+stories = 3
+scope = "national"            # local | national | world
+
+[[rundown.segment]]
+name = "WORLD"
+stories = 3
+scope = "world"
+
+[[rundown.segment]]
+name = "BUSINESS"
+stories = 2
+category = "business"
+
+[breaking]
+enabled = true
+min_sources = 4               # outlets that must carry a story...
+window_minutes = 30           # ...within this long of its first appearance
+cooldown_minutes = 20         # at most one alert per this long
+crawl_tag_minutes = 60        # how long it keeps the red BREAKING tag in the crawl
+title_prefixes = ["BREAKING:", "BREAKING NEWS:"]
+
+[theme]
+name = "classic"
+crawl_label = "HEADLINES"
+crawl_speed = 96              # pixels per second at 480 lines
+
+[data]
+dir = "data"                  # SQLite memory of stories already seen
+
+# Sources. Listing any [[source]] replaces the built-in list entirely.
+# Feeds with the same name count as one outlet. scope: local | national | world.
+# exclude: regular expressions; matching headlines or links are skipped.
+[[source]]
+name = "NPR"
+url = "https://feeds.npr.org/1001/rss.xml"
+
+[[source]]
+name = "NPR"
+url = "https://feeds.npr.org/1003/rss.xml"
+
+[[source]]
+name = "NPR"
+url = "https://feeds.npr.org/1004/rss.xml"
+scope = "world"
+
+[[source]]
+name = "NPR"
+url = "https://feeds.npr.org/1006/rss.xml"
+category = "business"
+
+[[source]]
+name = "The New York Times"
+url = "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
+
+[[source]]
+name = "The New York Times"
+url = "https://rss.nytimes.com/services/xml/rss/nyt/US.xml"
+
+[[source]]
+name = "The New York Times"
+url = "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+scope = "world"
+
+[[source]]
+name = "The New York Times"
+url = "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"
+category = "business"
+
+[[source]]
+name = "CBS News"
+url = "https://www.cbsnews.com/latest/rss/us"
+
+[[source]]
+name = "CBS News"
+url = "https://www.cbsnews.com/latest/rss/world"
+scope = "world"
+
+[[source]]
+name = "CBS News"
+url = "https://www.cbsnews.com/latest/rss/moneywatch"
+category = "business"
+
+[[source]]
+name = "ABC News"
+url = "https://feeds.abcnews.com/abcnews/topstories"
+
+[[source]]
+name = "NBC News"
+url = "https://feeds.nbcnews.com/nbcnews/public/news"
+
+[[source]]
+name = "Fox News"
+url = "https://moxie.foxnews.com/google-publisher/latest.xml"
+
+[[source]]
+name = "The Guardian"
+url = "https://www.theguardian.com/us-news/rss"
+
+[[source]]
+name = "The Guardian"
+url = "https://www.theguardian.com/world/rss"
+scope = "world"
+
+[[source]]
+name = "BBC News"
+url = "https://feeds.bbci.co.uk/news/world/rss.xml"
+scope = "world"
+
+[[source]]
+name = "BBC News"
+url = "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml"
+
+[[source]]
+name = "Al Jazeera"
+url = "https://www.aljazeera.com/xml/rss/all.xml"
+scope = "world"
+
+[[source]]
+name = "CNBC"
+url = "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147"
+category = "business"
+exclude = ["/select/"]        # CNBC Select: shopping and credit-card advice
+
+[[source]]
+name = "CNBC"
+url = "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114"
+category = "business"
+exclude = ["/select/"]

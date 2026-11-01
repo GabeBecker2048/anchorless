@@ -1,0 +1,27 @@
+# Example: Anchorless with Intel/AMD hardware encoding.
+# Put your settings in config.toml next to this file, and anything personal
+# (like your location) in .env as ANCHORLESS__LOCATION__CITY=... etc.
+services:
+  anchorless:
+    build: ..                      # or: image: <your registry>/anchorless
+    container_name: anchorless
+    restart: unless-stopped
+    user: "1000:1000"              # owner of ./data on the host
+    ports:
+      - "9798:9798"
+    env_file: .env
+    environment:
+      ANCHORLESS_CONFIG: /config/config.toml
+      ANCHORLESS__VIDEO__ENCODER: vaapi
+    volumes:
+      - ./config.toml:/config/config.toml:ro
+      - ./data:/data
+      - /path/to/music:/music:ro
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "992"                      # the host's render group id: getent group render
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    cpus: 1.0

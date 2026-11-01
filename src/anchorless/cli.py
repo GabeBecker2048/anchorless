@@ -1,0 +1,112 @@
+"""Command line: anchorless fetch | render | preview | serve."""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import logging
+import sys
+from datetime import datetime
+from pathlib import Path
+
+from . import __version__
+from .config import Config, ConfigError, load_config
+
+
+def _age(when: datetime | None, now: datetime) -> str:
+    if when is None:
+        return "  ?  "
+    minutes = int((now - when).total_seconds() // 60)
+    return f"{minutes:3d}m" if minutes < 120 else f"{minutes // 60:3d}h"
+
+
+async def _fetch(cfg: Config, as_json: bool) -> int:
+    from .newsroom import Newsroom
+
+    room = Newsroom(cfg)
+    rundown = await room.refresh()
+    now = rundown.built_at
+    if as_json:
+        print(json.dumps({
+            "built_at": now.isoformat(),
+            "segments": [{
+                "name": seg.name,
+                "stories": [{
+                    "title": c.lead.title, "summary": c.lead.summary, "outlets": c.outlets,
+                    "url": c.lead.url, "when": c.when.isoformat() if c.when else None,
+                    "score": round(c.score, 3),
+                } for c in seg.clusters],
+            } for seg in rundown.segments],
+            "feeds": room.feed_status(),
+        }, indent=2))
+        return 0
+    for seg in rundown.segments:
+        print(f"\n== {seg.name}")
+        for c in seg.clusters:
+            print(f"  {_age(c.when, now)}  [{len(c.outlets)}] {c.lead.title}")
+            print(f"         {', '.join(c.outlets)}")
+    failed = [f for f in room.feed_status() if f["error"]]
+    print(f"\n{sum(f['stories'] for f in room.feed_status())} stories from {len(cfg.source)} feeds", end="")
+    print(f", {len(failed)} failed:" if failed else "")
+    for f in failed:
+        print(f"  {f['name']} {f['url']}: {f['error']}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="anchorless", description="A 24/7 text newscast for IPTV.")
+    parser.add_argument("--version", action="version", version=f"anchorless {__version__}")
+    parser.add_argument("-c", "--config", help="config file (default: $ANCHORLESS_CONFIG or ./config.toml)")
+    parser.add_argument("-v", "--verbose", action="store_true")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("fetch", help="fetch the sources once and print the rundown")
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("render", help="write PNG stills of each page type")
+    p.add_argument("-o", "--out", default="out", help="output directory (default: out)")
+
+    p = sub.add_parser("preview", help="write a short MP4 of the channel")
+    p.add_argument("-o", "--out", default="out/preview.mp4")
+    p.add_argument("-s", "--seconds", type=float, default=60)
+    p.add_argument("--breaking", action="store_true", help="start with a (sample) breaking-news alert")
+
+    sub.add_parser("serve", help="run the channel: /playlist.m3u, /guide.xml, /live.ts, /health")
+    sub.add_parser("check-config", help="validate the config and print it")
+
+    args = parser.parse_args(argv)
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s", stream=sys.stderr,
+    )
+    if not args.verbose:
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+    try:
+        cfg = load_config(args.config)
+    except ConfigError as err:
+        print(err, file=sys.stderr)
+        return 2
+
+    if args.command == "check-config":
+        print(cfg.model_dump_json(indent=2))
+        return 0
+    if args.command == "fetch":
+        return asyncio.run(_fetch(cfg, args.json))
+    if args.command == "render":
+        from .render.stills import write_stills
+
+        return asyncio.run(write_stills(cfg, Path(args.out)))
+    if args.command == "preview":
+        from .stream.preview import write_preview
+
+        return asyncio.run(write_preview(cfg, Path(args.out), args.seconds, args.breaking))
+    if args.command == "serve":
+        from .stream.server import serve
+
+        return serve(cfg)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
