@@ -1,0 +1,8 @@
+.venv
+.git
+data
+out
+tests
+**/__pycache__
+config.toml
+.env

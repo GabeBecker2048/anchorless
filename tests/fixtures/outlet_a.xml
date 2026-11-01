@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>Outlet A</title>
+<item><title>Live updates: River flooding forces evacuations in Riverton</title>
+<link>https://outlet-a.example/2026/11/01/flood?utm_source=rss&amp;id=7</link>
+<description>&lt;p&gt;Thousands of residents left their homes as the Blue River rose past record levels.&lt;/p&gt;</description>
+<pubDate>Sun, 01 Nov 2026 16:00:00 -0000</pubDate></item>
+<item><title>City council approves new library budget</title>
+<link>https://outlet-a.example/2026/11/01/library</link>
+<description>The council voted 7-2 to fund a new downtown branch.</description>
+<pubDate>Sun, 01 Nov 2026 12:00:00 -0000</pubDate></item>
+<item><title>Here's the latest.</title>
+<link>https://outlet-a.example/live</link>
+<pubDate>Sun, 01 Nov 2026 16:30:00 -0000</pubDate></item>
+<item><title>BREAKING: Volcano erupts near Mount Example</title>
+<link>https://outlet-a.example/2026/11/01/volcano</link>
+<description>Ash clouds have grounded flights across the region.</description>
+<pubDate>Sun, 01 Nov 2026 16:50:00 -0000</pubDate></item>
+</channel></rss>
