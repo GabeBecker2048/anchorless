@@ -154,5 +154,6 @@ def build_rundown(clusters: list[Cluster], cfg: Config, now: datetime) -> Rundow
                 picked.append(c)
                 used.add(id(c))
         if picked:
-            segments.append(Segment(name=seg_cfg.name, clusters=picked))
+            name = seg_cfg.name.replace("{city}", cfg.location.city or "LOCAL").upper()
+            segments.append(Segment(name=name, clusters=picked))
     return Rundown(segments=segments, built_at=now)

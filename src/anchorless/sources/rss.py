@@ -103,10 +103,25 @@ class RssFetcher:
         st.ok_at = datetime.now(UTC)
         return stories
 
+    # Feeds on the same site are fetched one after another, this far apart: some
+    # sites answer a burst of requests with 429 Too Many Requests.
+    SAME_HOST_GAP = 3.0
+
+    async def _fetch_host(self, client: httpx.AsyncClient, sources: list[SourceConfig]) -> list[Story]:
+        out: list[Story] = []
+        for i, source in enumerate(sources):
+            if i:
+                await asyncio.sleep(self.SAME_HOST_GAP)
+            out += await self._fetch(client, source)
+        return out
+
     async def fetch_all(self, sources: list[SourceConfig]) -> list[Story]:
         enabled = [s for s in sources if s.enabled and s.type == "rss"]
+        by_host: dict[str, list[SourceConfig]] = {}
+        for s in enabled:
+            by_host.setdefault(httpx.URL(s.url).host, []).append(s)
         async with httpx.AsyncClient(
             timeout=self.timeout, follow_redirects=True, headers={"User-Agent": USER_AGENT},
         ) as client:
-            results = await asyncio.gather(*(self._fetch(client, s) for s in enabled))
+            results = await asyncio.gather(*(self._fetch_host(client, group) for group in by_host.values()))
         return [story for batch in results for story in batch]

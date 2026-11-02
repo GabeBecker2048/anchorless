@@ -16,10 +16,11 @@ guide_title = "Anchorless News"
 guide_description = "Around-the-clock headlines from national and world news outlets."
 
 [location]
-# For local news (coming soon). Best set from the environment instead:
-# city = "Springfield"
-# region = "IL"
-# country = "US"
+# Local news. Best set from the environment instead (ANCHORLESS__LOCATION__CITY=...),
+# so this file names no place:
+# city = "Springfield"        # the local segment's title
+# sources_file = "local.toml" # your local outlets' feeds (see local.example.toml),
+#                             # relative to this file. No file = no local segment.
 
 [video]
 width = 854
@@ -61,6 +62,12 @@ same_story_text_similarity = 0.32
 [[rundown.segment]]
 name = "TOP STORIES"
 stories = 4
+exclude_scope = ["local"]     # local-only stories stay in the local segment
+
+[[rundown.segment]]
+name = "{city}"                # the local segment, titled with [location] city
+stories = 3
+scope = "local"
 
 [[rundown.segment]]
 name = "NATIONAL"
@@ -84,6 +91,8 @@ window_minutes = 30           # ...within this long of its first appearance
 cooldown_minutes = 20         # at most one alert per this long
 crawl_tag_minutes = 60        # how long it keeps the red BREAKING tag in the crawl
 title_prefixes = ["BREAKING:", "BREAKING NEWS:"]
+local_min_sources = 5         # a story only local outlets carry needs this many
+local_alerts = "on"           # "on", "log" (only log what would break in), or "off"
 sound = "auto"                # "auto", "chiptune", "news", "none", or a sound file's path
 sound_volume = 0.8            # the music ducks under it either way
 

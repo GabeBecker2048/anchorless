@@ -1,0 +1,15 @@
+# Local news outlets for the local segment and local breaking news.
+# Point [location] sources_file at this file (copy it first). Every source here
+# counts as local; the segment is titled with ANCHORLESS__LOCATION__CITY.
+# Keep this file out of anything you publish if you'd rather not say where you live.
+#
+# Use each outlet's *local* section feed where it has one, so national stories
+# don't end up in the local segment.
+
+[[source]]
+name = "Springfield Daily"
+url = "https://www.example.com/news/local/rss.xml"
+
+[[source]]
+name = "KSPR News"
+url = "https://www.example.com/feeds/local"

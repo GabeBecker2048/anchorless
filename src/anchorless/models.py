@@ -69,6 +69,7 @@ class Cluster:
         return any(
             (segment.scope is None or s.scope == segment.scope)
             and (segment.category is None or s.category == segment.category)
+            and s.scope not in segment.exclude_scope
             for s in self.stories
         )
 
