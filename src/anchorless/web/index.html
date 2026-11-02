@@ -10,6 +10,13 @@
 @font-face { font-family: "Pixelify"; src: url("/fonts/PixelifySans.ttf"); font-display: swap; }
 @font-face { font-family: "Silkscreen"; src: url("/fonts/Silkscreen-Regular.ttf"); font-display: swap; }
 @font-face { font-family: "Silkscreen"; src: url("/fonts/Silkscreen-Bold.ttf"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("/fonts/Barlow-Regular.ttf"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("/fonts/Barlow-Medium.ttf"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("/fonts/Barlow-SemiBold.ttf"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("/fonts/Barlow-Bold.ttf"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Barlow Condensed"; src: url("/fonts/BarlowCondensed-SemiBold.ttf"); font-weight: 400 600; font-display: swap; }
+@font-face { font-family: "Barlow Condensed"; src: url("/fonts/BarlowCondensed-Bold.ttf"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Barlow Condensed"; src: url("/fonts/BarlowCondensed-ExtraBold.ttf"); font-weight: 800; font-display: swap; }
 
 :root {
   --bg: #0a0e22;
@@ -114,6 +121,54 @@ select { background: var(--panel-2); color: var(--text); border: 1px solid var(-
 .empty { color: var(--muted); font-size: 13.5px; }
 footer { margin: 22px 0 6px; font: 11px var(--pixel); color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
 .err { color: var(--red); }
+
+/* ---------- the Classic look: follows the channel (a clean, slide-like cable-news style) ---------- */
+html, body, .card, .player, header, .pill, select { transition: background-color .35s, color .35s, border-color .35s, box-shadow .35s; }
+html[data-look="classic"] {
+  color-scheme: light;
+  --bg: #eef2f9; --panel: #ffffff; --panel-2: #e9effb; --line: #e1e7f3;
+  --text: #0e1e46; --muted: #5d6f98; --gold: #f4b834; --red: #cc1230; --cyan: #1d5bd0; --green: #1f9d5b;
+  --pixel: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --head: "Barlow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, sans-serif;
+}
+html[data-look="classic"] body { font-size: 16px; }
+html[data-look="classic"] header { background: linear-gradient(100deg, #0e204e 0%, #184aa6 70%, #1d5bd0 100%);
+  padding: 14px 18px; border-radius: 14px; border-bottom: 4px solid var(--red);
+  box-shadow: 0 10px 30px rgba(14, 32, 78, .25); }
+html[data-look="classic"] .logo { color: #fff; font: 800 28px/1 var(--pixel); letter-spacing: .04em; }
+html[data-look="classic"] .tag { color: #d8e4fa; font: 500 16px var(--body); }
+html[data-look="classic"] .pill { border-radius: 999px; font: 700 13px var(--pixel); letter-spacing: .06em; padding: 4px 12px;
+  background: rgba(255,255,255,.14); color: #fff; }
+html[data-look="classic"] .pill.ok { color: #b9f5cf; }
+html[data-look="classic"] .pill.live { background: var(--red); }
+html[data-look="classic"] select { border-radius: 999px; padding: 6px 12px; background: rgba(255,255,255,.95); color: var(--text);
+  border: 0; font: 700 14px var(--pixel); letter-spacing: .04em; }
+html[data-look="classic"] .player { border: 0; outline: 0; border-radius: 14px; box-shadow: 0 18px 50px rgba(14, 32, 78, .28); }
+html[data-look="classic"] .player:fullscreen { border-radius: 0; }
+html[data-look="classic"] .big-play { background: rgba(8, 22, 58, .25); }
+html[data-look="classic"] .big-play span.btn { font: 700 20px var(--body); letter-spacing: .02em; border: 0; border-radius: 999px;
+  padding: 14px 30px; box-shadow: 0 10px 28px rgba(204, 18, 48, .45); }
+html[data-look="classic"] .big-play span.hint { font: 500 14px var(--body); }
+html[data-look="classic"] .status-msg { font: 600 15px var(--body); border-radius: 10px; }
+html[data-look="classic"] .controls .now { font: 600 14px var(--body); }
+html[data-look="classic"] .controls .badge { border-radius: 4px; font: 700 12px var(--pixel); letter-spacing: .08em; }
+html[data-look="classic"] .keys { font: 500 13px var(--body); }
+html[data-look="classic"] .keys kbd { background: #fff; border-radius: 5px; box-shadow: 0 1px 0 var(--line); font: 600 12px var(--body); }
+html[data-look="classic"] .card { border: 0; border-radius: 14px; padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(14, 30, 70, .06), 0 10px 28px rgba(14, 30, 70, .08); }
+html[data-look="classic"] .card h2 { color: var(--text); font: 800 17px var(--pixel); letter-spacing: .07em; }
+html[data-look="classic"] .card h2::before { content: ""; width: 5px; height: 18px; background: var(--red); border-radius: 3px; }
+html[data-look="classic"] .card h2 .sub { font: 600 13px var(--body); letter-spacing: 0; color: var(--muted); }
+html[data-look="classic"] .seg { font: 800 14px var(--pixel); letter-spacing: .08em; color: var(--cyan); }
+html[data-look="classic"] .story .t { font: 700 18px/1.3 var(--head); }
+html[data-look="classic"] .story .s { font-size: 15px; }
+html[data-look="classic"] .story .m { font: 600 12.5px var(--body); }
+html[data-look="classic"] .story .m .o { border-radius: 999px; padding: 2px 10px; background: var(--panel-2); color: #23407e; }
+html[data-look="classic"] .story .m .brk { border-radius: 999px; padding: 2px 10px; font-weight: 700; }
+html[data-look="classic"] .dot { border-radius: 50%; }
+html[data-look="classic"] .feed .c, html[data-look="classic"] .alert .w { font: 700 12.5px var(--pixel); letter-spacing: .05em; }
+html[data-look="classic"] footer { font: 600 13px var(--body); }
 </style>
 </head>
 <body>
@@ -213,10 +268,27 @@ function setPoster() {
   if (ch && !player) $("poster").src = `/poster/${encodeURIComponent(ch.id)}.png?t=${Date.now()}`;
 }
 
+// Two ways to play: mpegts.js reads the raw MPEG-TS stream (most browsers), and
+// the browser's own HLS player (iPhone Safari, which has no MediaSource) reads
+// the same stream cut into 2-second pieces. ?engine=hls forces the second.
+const forceHls = new URLSearchParams(location.search).get("engine") === "hls";
+function engine() {
+  if (!forceHls && window.mpegts && mpegts.getFeatureList().mseLivePlayback) return "mpegts";
+  if (video.canPlayType("application/vnd.apple.mpegurl")) return "hls";
+  return null;
+}
+
+function failed(text) {
+  stop();
+  box.classList.add("error");
+  $("msg").textContent = text;
+}
+
 function watch() {
   const ch = channel();
   if (!ch || player) return;
-  if (!window.mpegts || !mpegts.getFeatureList().mseLivePlayback) {
+  const how = engine();
+  if (!how) {
     box.classList.add("error");
     $("msg").textContent = "THIS BROWSER CAN'T PLAY THE STREAM - USE /playlist.m3u IN VLC";
     return;
@@ -224,14 +296,17 @@ function watch() {
   box.classList.remove("error");
   box.classList.add("playing", "loading");
   $("msg").textContent = "TUNING IN…";
+  if (how === "hls") {
+    player = { hls: true };
+    video.src = ch.hls;
+    video.play().catch(() => {});
+    poke();
+    return;
+  }
   player = mpegts.createPlayer({ type: "mpegts", isLive: true, url: ch.stream },
     { enableStashBuffer: true, liveBufferLatencyChasing: false, lazyLoad: false, autoCleanupSourceBuffer: true });
   player.attachMediaElement(video);
-  player.on(mpegts.Events.ERROR, (type, detail) => {
-    stop();
-    box.classList.add("error");
-    $("msg").textContent = "LOST THE SIGNAL (" + (detail || type) + ") - PRESS PLAY TO RETRY";
-  });
+  player.on(mpegts.Events.ERROR, (type, detail) => failed("LOST THE SIGNAL (" + (detail || type) + ") - PRESS PLAY TO RETRY"));
   player.load();
   const p = player.play();
   if (p && p.catch) p.catch(() => { /* playback starts once data arrives */ });
@@ -241,7 +316,8 @@ function watch() {
 function stop() {
   if (!player) return;
   const p = player; player = null;
-  try { p.pause(); p.unload(); p.detachMediaElement(); p.destroy(); } catch (e) { /* already gone */ }
+  if (p.hls) { video.pause(); video.removeAttribute("src"); video.load(); }
+  else { try { p.pause(); p.unload(); p.detachMediaElement(); p.destroy(); } catch (e) { /* already gone */ } }
   box.classList.remove("playing", "loading", "idle");
   if (document.fullscreenElement) document.exitFullscreen();
   setPoster();
@@ -249,6 +325,7 @@ function stop() {
 
 video.addEventListener("playing", () => box.classList.remove("loading"));
 video.addEventListener("waiting", () => { if (player) box.classList.add("loading"); });
+video.addEventListener("error", () => { if (player && player.hls) failed("LOST THE SIGNAL - PRESS PLAY TO RETRY"); });
 
 function toggleFullscreen() {
   if (document.fullscreenElement) { document.exitFullscreen(); return; }
@@ -380,11 +457,12 @@ function renderFeeds(s) {
 
 function render() {
   if (!status) return;
+  document.documentElement.dataset.look = channel().theme;    // the page follows the channel's look
   const sel = $("channel");
   if (status.channels.length > 1) {
     sel.hidden = false;
     if (sel.options.length !== status.channels.length) {
-      sel.replaceChildren(...status.channels.map((c) => { const o = el("option", null, `${c.number} ${c.name}` + (c.in_guide ? "" : " (web only)")); o.value = c.id; return o; }));
+      sel.replaceChildren(...status.channels.map((c) => { const o = el("option", null, `${c.number} ${c.name}`); o.value = c.id; return o; }));
     }
     sel.value = channel().id;
   }

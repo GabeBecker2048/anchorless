@@ -64,7 +64,8 @@ def status(st: Station) -> dict:
         "last_refresh": _iso(room.last_refresh),
         "refresh_minutes": st.cfg.rundown.refresh_minutes,
         "refresh_error": room.last_error,
-        "channels": [{**ch.status(), "id": ch.info.id, "stream": ch.info.path, "in_guide": ch.info.in_guide}
+        "channels": [{**ch.status(), "id": ch.info.id, "stream": ch.info.path, "hls": f"/hls/{ch.info.id}.m3u8",
+                      "in_guide": ch.info.in_guide}
                      for ch in st.channels.values()],
         "rundown": rundown,
         "feeds": feeds,
