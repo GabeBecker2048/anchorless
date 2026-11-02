@@ -14,6 +14,7 @@ id = "anchorless.news"        # XMLTV channel id
 timezone = "America/Chicago"  # for the on-screen clock and the guide
 guide_title = "Anchorless News"
 guide_description = "Around-the-clock headlines from national and world news outlets."
+guide_slot_minutes = 30        # guide blocks on :00/:30; 1440 = one per day
 
 [location]
 # Local news. Best set from the environment instead (ANCHORLESS__LOCATION__CITY=...),
