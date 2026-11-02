@@ -64,9 +64,9 @@ def status(st: Station) -> dict:
         "last_refresh": _iso(room.last_refresh),
         "refresh_minutes": st.cfg.rundown.refresh_minutes,
         "refresh_error": room.last_error,
-        "channels": [{**ch.status(), "id": ch.info.id, "stream": ch.info.path, "hls": f"/hls/{ch.info.id}.m3u8",
-                      "in_guide": ch.info.in_guide}
-                     for ch in st.channels.values()],
+        # Only the channels offered on the web (show_on "both" or "web").
+        "channels": [{**ch.status(), "id": ch.info.id, "stream": ch.info.path, "hls": f"/hls/{ch.info.id}.m3u8"}
+                     for ch in st.channels.values() if ch.info.on_web],
         "rundown": rundown,
         "feeds": feeds,
         "alerts": [{"title": t, "when": _iso(w)} for t, w in room.store.recent_alerts(8)],

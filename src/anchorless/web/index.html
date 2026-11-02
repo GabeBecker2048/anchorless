@@ -261,6 +261,8 @@ function clock(iso) {
 }
 
 // ---------- the player ----------
+// "2 NEWS", or just the name for a web-only channel (it has no channel number).
+function label(c) { return c.number ? `${c.number} ${c.name}` : c.name; }
 function channel() { return status?.channels.find((c) => c.id === channelId) || status?.channels[0]; }
 
 function setPoster() {
@@ -412,7 +414,7 @@ function renderOnAir(s) {
   const row = (k, v, cls) => { kv.append(el("dt", null, k)); const d = el("dd", cls); if (v instanceof Node) d.append(v); else d.textContent = v; kv.append(d); };
   const state = el("span");
   state.append(el("span", "dot" + (ch.running ? "" : " off")), ch.running ? "Encoding" : "Idle - starts when someone tunes in");
-  row("Channel", `${ch.number} ${ch.name}`);
+  row("Channel", label(ch));
   row("State", state);
   row("Viewers", String(ch.viewers));
   // The server reports what it is drawing, which is the buffer (~10 s) ahead of the screen.
@@ -422,7 +424,7 @@ function renderOnAir(s) {
   row("Sessions", `${ch.sessions}` + (ch.last_stop ? ` · last stop ${clock(ch.last_stop)}` : ""));
   row("Next fetch", s.last_refresh ? clock(new Date(Date.parse(s.last_refresh) + s.refresh_minutes * 60000).toISOString()) : "-");
   if (s.refresh_error) row("Error", s.refresh_error, "err");
-  $("nowline").textContent = `${ch.number} ${ch.name}` + (ch.viewers > 1 ? ` · ${ch.viewers} watching` : "");
+  $("nowline").textContent = label(ch) + (ch.viewers > 1 ? ` · ${ch.viewers} watching` : "");
 }
 
 function renderAlerts(s) {
@@ -457,12 +459,18 @@ function renderFeeds(s) {
 
 function render() {
   if (!status) return;
+  if (!status.channels.length) {          // every channel is show_on = "tv"
+    $("msg").textContent = "NO CHANNELS ARE SHOWN ON THE WEB (show_on)";
+    box.classList.add("error");
+    $("bigplay").hidden = true;
+    return;
+  }
   document.documentElement.dataset.look = channel().theme;    // the page follows the channel's look
   const sel = $("channel");
   if (status.channels.length > 1) {
     sel.hidden = false;
     if (sel.options.length !== status.channels.length) {
-      sel.replaceChildren(...status.channels.map((c) => { const o = el("option", null, `${c.number} ${c.name}`); o.value = c.id; return o; }));
+      sel.replaceChildren(...status.channels.map((c) => { const o = el("option", null, label(c)); o.value = c.id; return o; }));
     }
     sel.value = channel().id;
   }
@@ -486,7 +494,7 @@ async function refresh() {
     status = await r.json();
     if (first) {
       const want = location.hash.slice(1);
-      channelId = status.channels.some((c) => c.id === want) ? want : status.channels[0].id;
+      channelId = status.channels.some((c) => c.id === want) ? want : status.channels[0]?.id;
       setPoster();
     }
     render();

@@ -10,7 +10,7 @@ from anchorless.stream.guide import guide, playlist
 from anchorless.stream.playout import Playout
 from anchorless.stream.tsbuffer import TS, TsBuffer, is_keyframe
 
-from .conftest import NOW
+from .conftest import CHANNEL, NOW
 
 
 def _packet(pid: int, key: bool = False) -> bytes:
@@ -65,7 +65,7 @@ class FakeNews:
 
 @pytest.mark.parametrize("theme", ["studio", "classic"])
 def test_playout_frames(stories, cfg, theme):
-    cfg.theme.name = theme
+    cfg.channel.theme = theme
     cfg.rundown.page_seconds = 3
     cfg.rundown.intro_seconds = 1
     cfg.video.fps = 4
@@ -83,8 +83,8 @@ def test_playout_frames(stories, cfg, theme):
 
 @pytest.mark.parametrize("theme", ["studio", "classic"])
 def test_playout_empty_rundown(theme):
-    cfg = Config()
-    cfg.theme.name = theme
+    cfg = Config(channel=CHANNEL)
+    cfg.channel.theme = theme
     cfg.video.fps = 2
     play = Playout(cfg, FakeNews(Rundown(segments=[], built_at=NOW)), NOW)
     play.next_frame()
@@ -94,7 +94,8 @@ def test_playout_empty_rundown(theme):
 def test_guide_and_playlist_with_an_extra_channel():
     from anchorless.config import ExtraChannelConfig
 
-    cfg = Config(extra_channel=[ExtraChannelConfig(name="NEWS CLASSIC", number=97, id="x.classic")])
+    cfg = Config(channel=CHANNEL, extra_channel=[
+        ExtraChannelConfig(theme="classic", name="NEWS CLASSIC", show_on="both", channel_number=97, id="x.classic")])
     # Half-hour blocks on :00 and :30, through the DST change (2026-11-01 in Chicago,
     # a 25-hour day: 50 blocks, then 48 a day).
     text = guide(cfg, datetime(2026, 11, 1, 12, tzinfo=UTC))
@@ -103,20 +104,23 @@ def test_guide_and_playlist_with_an_extra_channel():
     assert 'start="20261101010000 -0600" stop="20261101013000 -0600"' in text
     assert text.count("<channel ") == 2 and text.count("<programme ") == 2 * (50 + 48 + 48)
     # One programme per day, midnight to midnight.
-    daily = Config(channel={"guide_slot_minutes": 1440}, extra_channel=cfg.extra_channel)
+    daily = Config(channel={**CHANNEL, "guide_slot_minutes": 1440}, extra_channel=cfg.extra_channel)
     text = guide(daily, datetime(2026, 11, 1, 12, tzinfo=UTC))
     assert 'start="20261101000000 -0500" stop="20261102000000 -0600"' in text
     assert text.count("<programme ") == 6
     m3u = playlist(cfg, "host:9798").splitlines()
-    assert 'tvg-chno="98"' in m3u[1] and m3u[2] == "http://host:9798/live.ts"
+    assert 'tvg-chno="2"' in m3u[1] and m3u[2] == "http://host:9798/live.ts"
     assert 'tvg-chno="97"' in m3u[3] and m3u[4] == "http://host:9798/live/x.classic.ts"
-    # A web-only channel is left out of the playlist and the guide.
-    web_only = Config(extra_channel=[ExtraChannelConfig(name="TRY", number=96, id="x.try", in_guide=False)])
-    assert "x.try" not in playlist(web_only, "host:9798") and "x.try" not in guide(web_only, NOW)
+    # A web-only channel is left out of the playlist and the guide; a TV-only one is listed.
+    two = Config(channel={**CHANNEL, "show_on": "tv"}, extra_channel=[
+        ExtraChannelConfig(theme="classic", name="Try It", show_on="web", channel_number=96)])
+    assert two.extra_channel[0].id == "anchorless.try-it" and two.extra_channel[0].channel_number is None
+    assert "try-it" not in playlist(two, "host:9798") and "try-it" not in guide(two, NOW)
+    assert "anchorless.news" in playlist(two, "host:9798")
 
 
 def test_ffmpeg_args():
-    cfg = Config()
+    cfg = Config(channel=CHANNEL)
     args = ffmpeg_args(cfg, None)
     assert "libx264" in args and "repeat-headers=1" in args and args[-1] == "pipe:1"
     cfg.video.encoder = "vaapi"
@@ -186,7 +190,7 @@ def test_sun_and_moon_move_smoothly_and_never_swap_mid_sky():
 def test_studio_clock_blinks():
     from anchorless.render.studio import StudioTheme
 
-    t = StudioTheme(Config())
+    t = StudioTheme(Config(channel=CHANNEL))
     a, b = NOW, NOW + timedelta(seconds=1)
     assert t.clock_key(a) != t.clock_key(b)
     assert t.clock(a).tobytes() != t.clock(b).tobytes()
@@ -243,7 +247,7 @@ def test_effects_track_stays_in_step_with_video(stories, cfg, fps):
 def test_ffmpeg_args_have_the_effects_input():
     from pathlib import Path
 
-    args = ffmpeg_args(Config(), Path("/m.txt"), fx_input="pipe:9")
+    args = ffmpeg_args(Config(channel=CHANNEL), Path("/m.txt"), fx_input="pipe:9")
     assert "pipe:9" in args and "s16le" in args
     graph = args[args.index("-filter_complex") + 1]
     assert "sidechaincompress" in graph and "anullsrc" not in " ".join(args)

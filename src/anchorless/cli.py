@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         from .stream.preview import write_preview
 
         if args.theme:
-            cfg.theme.name = args.theme
+            cfg.channel.theme = args.theme
         return asyncio.run(write_preview(cfg, Path(args.out), args.seconds, args.breaking))
     if args.command == "serve":
         from .stream.server import serve

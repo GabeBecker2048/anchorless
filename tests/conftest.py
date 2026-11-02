@@ -8,11 +8,14 @@ from anchorless.sources.rss import parse_feed
 
 FIXTURES = Path(__file__).parent / "fixtures"
 NOW = datetime(2026, 11, 1, 17, 0, tzinfo=UTC)
+# The required [channel] settings, for tests that build a Config directly.
+CHANNEL = {"theme": "studio", "show_on": "both", "channel_number": 2}
 
 
 @pytest.fixture
 def cfg(tmp_path) -> Config:
     return Config(
+        channel=CHANNEL,
         source=[SourceConfig(name="Outlet A", url="https://a.example/rss"),
                 SourceConfig(name="Outlet B", url="https://b.example/rss")],
         data={"dir": str(tmp_path)},

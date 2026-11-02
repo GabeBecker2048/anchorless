@@ -1,16 +1,19 @@
 # Anchorless configuration.
 #
-# Copy this to config.toml and change what you like. Every setting is optional:
-# anything left out uses the default shown here.
+# Copy this to config.toml and change what you like. In [channel], theme and
+# show_on are required (and channel_number for a TV channel); every other
+# setting is optional, and anything left out uses the default shown here.
 #
 # Any setting can also come from the environment as ANCHORLESS__<SECTION>__<KEY>,
 # e.g. ANCHORLESS__LOCATION__CITY=Springfield. Use that for anything personal
 # (like your location) so this file can be shared.
 
 [channel]
-name = "NEWS"                 # shown in the logo and in your TV guide
-number = "98"
-id = "anchorless.news"        # XMLTV channel id
+theme = "studio"              # required: "studio" (pixel-art news set) or "classic" (cable-news pages)
+name = "NEWS"                 # shown in the logo and in your TV guide (default "NEWS")
+show_on = "both"              # required: "both" (TV + web page), "tv" (TV only) or "web" (web page only)
+channel_number = 101          # required for "both" and "tv" (e.g. 2, 101, 2.1); ignored for "web"
+# id = "anchorless.news"      # stable id for TV guides (tvg-id) and the stream URL
 timezone = "America/Chicago"  # for the on-screen clock and the guide
 guide_title = "Anchorless News"
 guide_description = "Around-the-clock headlines from national and world news outlets."
@@ -97,18 +100,25 @@ local_alerts = "on"           # "on", "log" (only log what would break in), or "
 sound = "auto"                # "auto", "chiptune", "news", "none", or a sound file's path
 sound_volume = 0.8            # the music ducks under it either way
 
-[theme]
-name = "studio"               # "studio" (pixel-art news set) or "classic" (cable-news pages)
+[theme]                       # shared by every channel's look
 crawl_label = "HEADLINES"
 crawl_speed = 96              # pixels per second at 480 lines
 
-# More channels from the same news (one fetch feeds them all), e.g. the
-# Classic look on its own channel number. Each one gets its own stream.
+# More channels from the same news (one fetch feeds them all). The settings are
+# the same as [channel], except that name is required here. Each channel gets its
+# own stream, drawn and encoded only while someone watches it. Add as many as you like.
+#
 # [[extra_channel]]
-# name = "NEWS CLASSIC"
-# number = "97"
-# id = "anchorless.classic"
 # theme = "classic"
+# name = "NEWS CLASSIC"       # required for an extra channel
+# show_on = "web"
+# channel_number = 99         # ignored: show_on is "web"
+#
+# [[extra_channel]]
+# theme = "studio"
+# name = "NEWS 2"
+# show_on = "tv"
+# channel_number = 102
 
 [data]
 dir = "data"                  # SQLite memory of stories already seen
