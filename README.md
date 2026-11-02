@@ -113,6 +113,46 @@ Feeds are fetched by the server, so every feed request - redirects included -
 must go to a public address: a URL can't point it at your router or other
 services on your network (`[feeds] allow_private = true` allows it).
 
+## Hosting publicly
+
+**Recommended: keep Anchorless private** - on your home network, or reachable
+only through a VPN such as Tailscale or WireGuard. That is what it is built and
+tested for.
+
+If you do put it on the internet, the TV side (`/playlist.m3u`, `/guide.xml`,
+`/live.ts`, `/hls/`) and the viewer page stay **open by design**: anyone who can
+reach them can watch, and every channel someone watches costs about 30% of a CPU
+core. The viewer limits below are how you cap that. Before you open it up:
+
+- [ ] **TLS in front.** Run it behind a reverse proxy with https (Caddy, nginx,
+      Traefik) and don't expose port 9798 itself: publish it to the proxy only
+      (e.g. `127.0.0.1:9798:9798` in Docker, or a shared Docker network).
+- [ ] **Tell it about the proxy:** `[admin] trusted_proxies = ["<proxy address>"]`,
+      so the login, the viewer limits and the logs see real client addresses
+      (`X-Forwarded-For` is ignored from anyone else).
+- [ ] **Keep the settings page private.** Leave `[admin] allow_from` at its
+      default (private networks only), leave `[admin] require_https = true`, and
+      use a long random password - ideally as `[admin] password_hash` from
+      `anchorless hash-password`. Or set no password at all: then there is no
+      settings page.
+- [ ] **https for the viewer page:** `[web] require_https = true`.
+- [ ] **Set the limits** in `[stream]`: `max_sessions` (channels encoding at
+      once; default 2), `max_viewers` (total), and `max_viewers_per_client` so one
+      address can't take every slot. Leave the last at -1 if a TV server such as
+      Jellyfin sits in between - all its viewers come from its one address.
+- [ ] **Decide what the status shows:** `[web] public_status = "summary"` lists
+      only counts on `/health` and the viewer page, not your feeds. (Feed URLs and
+      error details are never public either way.)
+- [ ] **Mind your location.** Local news shows your city on screen, and local
+      feeds name your area's outlets. Leave out `[location]` for a public channel
+      if that matters to you.
+- [ ] **Harden the container** as in `deploy/docker-compose.example.yml`: a
+      non-root user, `read_only: true`, `cap_drop: [ALL]`,
+      `no-new-privileges`, and memory and CPU limits.
+- [ ] **Keep it updated:** rebuild the image now and then
+      (`docker compose build --pull`) for security fixes in the base image,
+      ffmpeg and the Python libraries.
+
 ## Configuration
 
 Copy [`config.example.toml`](config.example.toml) to `config.toml`. Every
