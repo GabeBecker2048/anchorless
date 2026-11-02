@@ -88,6 +88,12 @@ class Store:
         row = self.db.execute("SELECT MAX(alerted_at) FROM alerts").fetchone()
         return _dt(row[0]) if row and row[0] is not None else None
 
+    def recent_alerts(self, limit: int = 10) -> list[tuple[str, datetime]]:
+        """The latest alerts, newest first: (headline, when)."""
+        rows = self.db.execute("SELECT title, alerted_at FROM alerts ORDER BY alerted_at DESC LIMIT ?",
+                               (limit,)).fetchall()
+        return [(t, _dt(a)) for t, a in rows]
+
     def alerts(self) -> list[tuple[str, set[str], datetime]]:
         rows = self.db.execute("SELECT cluster_key, tokens, alerted_at FROM alerts").fetchall()
         return [(k, set(json.loads(t)), _dt(a)) for k, t, a in rows]

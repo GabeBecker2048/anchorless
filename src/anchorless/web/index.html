@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anchorless</title>
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='2' fill='%23141b3d'/%3E%3Crect x='3' y='4' width='10' height='6' fill='%234fd8e8'/%3E%3Crect x='2' y='11' width='12' height='2' fill='%23ffd34d'/%3E%3C/svg%3E">
+<style>
+@font-face { font-family: "Pixelify"; src: url("/fonts/PixelifySans.ttf"); font-display: swap; }
+@font-face { font-family: "Silkscreen"; src: url("/fonts/Silkscreen-Regular.ttf"); font-display: swap; }
+@font-face { font-family: "Silkscreen"; src: url("/fonts/Silkscreen-Bold.ttf"); font-weight: 700; font-display: swap; }
+
+:root {
+  --bg: #0a0e22;
+  --panel: #131a3a;
+  --panel-2: #1a2350;
+  --line: #2a3570;
+  --text: #e8ecff;
+  --muted: #929bd0;
+  --gold: #ffd34d;
+  --red: #e8384f;
+  --cyan: #4fd8e8;
+  --green: #5be38a;
+  --pixel: "Silkscreen", ui-monospace, monospace;
+  --head: "Pixelify", system-ui, sans-serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 var(--body); }
+a { color: var(--cyan); }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 16px; }
+
+header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.logo { font: 700 22px var(--pixel); letter-spacing: 1px; color: var(--gold); }
+.tag { font: 13px var(--pixel); color: var(--muted); }
+.spacer { flex: 1; }
+.pill { font: 12px var(--pixel); padding: 3px 8px; border-radius: 3px; background: var(--panel-2); color: var(--muted); }
+.pill.live { background: var(--red); color: #fff; }
+.pill.ok { color: var(--green); }
+
+/* --- the player --- */
+.player { position: relative; background: #000; border: 3px solid #000; outline: 2px solid var(--line);
+          aspect-ratio: 16 / 9; width: 100%; overflow: hidden; user-select: none; }
+.player video, .player .poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.player .poster { image-rendering: pixelated; transition: opacity .3s; }
+.player.playing .poster { opacity: 0; pointer-events: none; }
+.player:not(.playing) video { visibility: hidden; }
+.big-play { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 10px; background: rgba(5, 8, 25, .35); border: 0; color: #fff; cursor: pointer; width: 100%; }
+.big-play span.btn { font: 700 20px var(--pixel); background: var(--red); padding: 12px 22px; border: 3px solid #000;
+                     box-shadow: 4px 4px 0 #000; }
+.big-play:hover span.btn { background: #ff4d63; }
+.big-play span.hint { font: 12px var(--pixel); color: #cfd5ff; text-shadow: 1px 1px 0 #000; }
+.player.playing .big-play { display: none; }
+.status-msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 14px var(--pixel);
+              background: rgba(0,0,0,.75); padding: 10px 14px; display: none; text-align: center; }
+.player.loading .status-msg, .player.error .status-msg { display: block; }
+
+.controls { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 10px;
+            padding: 10px 12px; background: linear-gradient(transparent, rgba(0,0,0,.85)); transition: opacity .25s; }
+.player:not(.playing) .controls { display: none; }
+.player.idle .controls { opacity: 0; }
+.player.idle { cursor: none; }
+.controls button { background: none; border: 0; color: #fff; cursor: pointer; padding: 4px; display: grid; place-items: center; }
+.controls button:hover { color: var(--gold); }
+.controls svg { width: 22px; height: 22px; fill: currentColor; }
+.controls input[type=range] { width: 90px; accent-color: var(--gold); }
+.controls .now { font: 12px var(--pixel); color: #dfe3ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+.controls .badge { font: 11px var(--pixel); background: var(--red); padding: 2px 6px; }
+select { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); font: 12px var(--pixel); padding: 4px 6px; }
+
+.player:fullscreen { border: 0; outline: 0; aspect-ratio: auto; }
+.player:fullscreen .controls { padding: 18px 24px; }
+
+.keys { font: 11px var(--pixel); color: var(--muted); margin-top: 8px; }
+@media (max-width: 600px), (pointer: coarse) { .keys { display: none; } }
+.keys kbd { font: inherit; background: var(--panel-2); border: 1px solid var(--line); padding: 0 5px; color: var(--text); }
+
+/* --- status --- */
+.grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; margin-top: 18px; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 2px solid var(--line); padding: 14px 16px; min-width: 0; }
+.card h2 { font: 700 13px var(--pixel); letter-spacing: 1px; color: var(--gold); margin: 0 0 10px; display: flex; gap: 8px; align-items: center; }
+.card h2 .sub { color: var(--muted); font-weight: 400; margin-left: auto; }
+.stack { display: grid; gap: 16px; align-content: start; }
+
+.seg { font: 12px var(--pixel); color: var(--cyan); margin: 14px 0 6px; }
+.seg:first-of-type { margin-top: 0; }
+.story { padding: 8px 0; border-top: 1px solid var(--line); }
+.story:first-child { border-top: 0; }
+.story .t { font: 500 16px var(--head); }
+.story .s { color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+.story .m { font: 11px var(--pixel); color: var(--muted); margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.story .m .o { background: var(--panel-2); padding: 1px 6px; color: #c9cff7; }
+.story .m .brk { background: var(--red); color: #fff; padding: 1px 6px; }
+
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; background: var(--green); }
+.dot.off { background: var(--muted); }
+.dot.bad { background: var(--red); }
+
+.feed { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; font-size: 13.5px; border-top: 1px solid var(--line); }
+.feed:first-child { border-top: 0; }
+.feed .n { flex: 1; min-width: 0; }
+.feed .h { color: var(--muted); font-size: 12px; }
+.feed .c { font: 11px var(--pixel); color: var(--muted); white-space: nowrap; }
+.feed.bad .c { color: var(--red); }
+.alert { padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.alert:first-child { border-top: 0; }
+.alert .w { font: 11px var(--pixel); color: var(--red); }
+.empty { color: var(--muted); font-size: 13.5px; }
+footer { margin: 22px 0 6px; font: 11px var(--pixel); color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+.err { color: var(--red); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">ANCHORLESS</div>
+    <div class="tag">News without the anchor</div>
+    <div class="spacer"></div>
+    <select id="channel" aria-label="Channel" hidden></select>
+    <span class="pill" id="conn">connecting…</span>
+  </header>
+
+  <div class="player" id="player">
+    <img class="poster" id="poster" alt="">
+    <video id="video" playsinline></video>
+    <button class="big-play" id="bigplay" aria-label="Watch live">
+      <span class="btn">▶ WATCH LIVE</span>
+      <span class="hint" id="bighint">starts the channel - about 2 s</span>
+    </button>
+    <div class="status-msg" id="msg">TUNING IN…</div>
+    <div class="controls" id="controls">
+      <button id="stop" title="Stop (K)" aria-label="Stop"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></svg></button>
+      <button id="mute" title="Mute (M)" aria-label="Mute"><svg viewBox="0 0 24 24" id="muteicon"></svg></button>
+      <input type="range" id="vol" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+      <span class="badge">LIVE</span>
+      <span class="now" id="nowline"></span>
+      <button id="fs" title="Full screen (F)" aria-label="Full screen"><svg viewBox="0 0 24 24" id="fsicon"></svg></button>
+    </div>
+  </div>
+  <div class="keys"><kbd>Space</kbd> watch / stop · <kbd>F</kbd> full screen (or double-click) · <kbd>M</kbd> mute · <kbd>↑</kbd><kbd>↓</kbd> volume</div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>RUNDOWN <span class="sub" id="rd-sub"></span></h2>
+      <div id="rundown"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="stack">
+      <div class="card">
+        <h2>ON AIR</h2>
+        <dl class="kv" id="onair"></dl>
+      </div>
+      <div class="card">
+        <h2>BREAKING ALERTS <span class="sub" id="br-sub"></span></h2>
+        <div id="alerts"></div>
+      </div>
+      <div class="card">
+        <h2>FEEDS <span class="sub" id="feeds-sub"></span></h2>
+        <div id="feeds"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span id="ver"></span>
+    <a href="/playlist.m3u">playlist.m3u</a>
+    <a href="/guide.xml">guide.xml</a>
+    <a href="/health">health</a>
+  </footer>
+</div>
+
+<script src="/static/mpegts.min.js"></script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const ICON = {
+  vol: '<path d="M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/>',
+  muted: '<path d="M4 9v6h4l5 4V5L8 9H4zm12.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z"/>',
+  fs: '<path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z"/>',
+  unfs: '<path d="M8 4h2v6H4V8h4V4zm6 0h2v4h4v2h-6V4zM4 14h6v6H8v-4H4v-2zm10 0h6v2h-4v4h-2v-6z"/>',
+};
+
+let status = null;          // the latest /api/status
+let channelId = null;
+let player = null;          // the mpegts.js player while watching
+const video = $("video"), box = $("player");
+
+// ---------- time ----------
+function ago(iso) {
+  if (!iso) return "";
+  const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
+  if (s < 90) return "just now";
+  if (s < 3600) return Math.round(s / 60) + " min ago";
+  if (s < 86400 * 2) return Math.round(s / 3600) + " h ago";
+  return Math.round(s / 86400) + " days ago";
+}
+function clock(iso) {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: status?.timezone });
+}
+
+// ---------- the player ----------
+function channel() { return status?.channels.find((c) => c.id === channelId) || status?.channels[0]; }
+
+function setPoster() {
+  const ch = channel();
+  if (ch && !player) $("poster").src = `/poster/${encodeURIComponent(ch.id)}.png?t=${Date.now()}`;
+}
+
+function watch() {
+  const ch = channel();
+  if (!ch || player) return;
+  if (!window.mpegts || !mpegts.getFeatureList().mseLivePlayback) {
+    box.classList.add("error");
+    $("msg").textContent = "THIS BROWSER CAN'T PLAY THE STREAM - USE /playlist.m3u IN VLC";
+    return;
+  }
+  box.classList.remove("error");
+  box.classList.add("playing", "loading");
+  $("msg").textContent = "TUNING IN…";
+  player = mpegts.createPlayer({ type: "mpegts", isLive: true, url: ch.stream },
+    { enableStashBuffer: true, liveBufferLatencyChasing: false, lazyLoad: false, autoCleanupSourceBuffer: true });
+  player.attachMediaElement(video);
+  player.on(mpegts.Events.ERROR, (type, detail) => {
+    stop();
+    box.classList.add("error");
+    $("msg").textContent = "LOST THE SIGNAL (" + (detail || type) + ") - PRESS PLAY TO RETRY";
+  });
+  player.load();
+  const p = player.play();
+  if (p && p.catch) p.catch(() => { /* playback starts once data arrives */ });
+  poke();
+}
+
+function stop() {
+  if (!player) return;
+  const p = player; player = null;
+  try { p.pause(); p.unload(); p.detachMediaElement(); p.destroy(); } catch (e) { /* already gone */ }
+  box.classList.remove("playing", "loading", "idle");
+  if (document.fullscreenElement) document.exitFullscreen();
+  setPoster();
+}
+
+video.addEventListener("playing", () => box.classList.remove("loading"));
+video.addEventListener("waiting", () => { if (player) box.classList.add("loading"); });
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) { document.exitFullscreen(); return; }
+  if (box.requestFullscreen) box.requestFullscreen().catch(() => {});
+  else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();     // iPhone
+}
+document.addEventListener("fullscreenchange", () => {
+  $("fsicon").innerHTML = document.fullscreenElement ? ICON.unfs : ICON.fs;
+  poke();
+});
+
+function setMuted(m) { video.muted = m; $("muteicon").innerHTML = m || video.volume === 0 ? ICON.muted : ICON.vol; }
+function setVolume(v) { video.volume = Math.min(1, Math.max(0, v)); $("vol").value = video.volume; setMuted(video.volume === 0 ? true : false); }
+
+// Controls and cursor hide after a few still seconds while watching.
+let idleTimer = null;
+function poke() {
+  box.classList.remove("idle");
+  clearTimeout(idleTimer);
+  if (player) idleTimer = setTimeout(() => { if (player) box.classList.add("idle"); }, 2500);
+}
+
+$("bigplay").addEventListener("click", watch);
+$("stop").addEventListener("click", stop);
+$("mute").addEventListener("click", () => setMuted(!video.muted));
+$("vol").addEventListener("input", (e) => setVolume(parseFloat(e.target.value)));
+$("fs").addEventListener("click", toggleFullscreen);
+box.addEventListener("dblclick", (e) => { if (!e.target.closest(".controls")) toggleFullscreen(); });
+box.addEventListener("mousemove", poke);
+box.addEventListener("click", (e) => { if (player && !e.target.closest(".controls")) poke(); });
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, select, textarea") && e.key !== "Escape") return;
+  const k = e.key.toLowerCase();
+  if (k === "f") { toggleFullscreen(); }
+  else if (k === " " || k === "k") { player ? stop() : watch(); }
+  else if (k === "m") { setMuted(!video.muted); }
+  else if (k === "arrowup") { setVolume(video.volume + 0.1); }
+  else if (k === "arrowdown") { setVolume(video.volume - 0.1); }
+  else return;
+  e.preventDefault();
+  poke();
+});
+$("channel").addEventListener("change", (e) => {
+  const was = !!player;
+  stop();
+  channelId = e.target.value;
+  history.replaceState(null, "", "#" + channelId);
+  setPoster();
+  render();
+  if (was) watch();
+});
+// Leaving the page stops the stream, so the encoder can idle out.
+window.addEventListener("pagehide", stop);
+
+// ---------- status ----------
+function renderRundown(s) {
+  const root = $("rundown");
+  root.replaceChildren();
+  if (!s.rundown.length) { root.append(el("div", "empty", "No stories yet - waiting for the first fetch.")); return; }
+  for (const seg of s.rundown) {
+    root.append(el("div", "seg", seg.segment));
+    const list = el("div");
+    for (const st of seg.stories) {
+      const row = el("div", "story");
+      row.append(el("div", "t", st.title));
+      if (st.summary) row.append(el("div", "s", st.summary));
+      const m = el("div", "m");
+      if (st.breaking) m.append(el("span", "brk", "BREAKING"));
+      for (const o of st.outlets) m.append(el("span", "o", o));
+      if (st.when) m.append(el("span", null, ago(st.when)));
+      row.append(m);
+      list.append(row);
+    }
+    root.append(list);
+  }
+  const n = s.rundown.reduce((a, g) => a + g.stories.length, 0);
+  $("rd-sub").textContent = `${n} stories · updated ${clock(s.last_refresh)}`;
+}
+
+function renderOnAir(s) {
+  const ch = channel();
+  const kv = $("onair");
+  kv.replaceChildren();
+  const row = (k, v, cls) => { kv.append(el("dt", null, k)); const d = el("dd", cls); if (v instanceof Node) d.append(v); else d.textContent = v; kv.append(d); };
+  const state = el("span");
+  state.append(el("span", "dot" + (ch.running ? "" : " off")), ch.running ? "Encoding" : "Idle - starts when someone tunes in");
+  row("Channel", `${ch.number} ${ch.name}`);
+  row("State", state);
+  row("Viewers", String(ch.viewers));
+  // The server reports what it is drawing, which is the buffer (~10 s) ahead of the screen.
+  if (ch.running && ch.on_air) row("Up next", ch.on_air);
+  if (ch.running && ch.seconds_ahead != null) row("Buffer", `${ch.seconds_ahead.toFixed(1)} s ahead`);
+  if (ch.lead_reached_after != null) row("Tune-in", `${ch.lead_reached_after} s to buffer`);
+  row("Sessions", `${ch.sessions}` + (ch.last_stop ? ` · last stop ${clock(ch.last_stop)}` : ""));
+  row("Next fetch", s.last_refresh ? clock(new Date(Date.parse(s.last_refresh) + s.refresh_minutes * 60000).toISOString()) : "-");
+  if (s.refresh_error) row("Error", s.refresh_error, "err");
+  $("nowline").textContent = `${ch.number} ${ch.name}` + (ch.viewers > 1 ? ` · ${ch.viewers} watching` : "");
+}
+
+function renderAlerts(s) {
+  const root = $("alerts");
+  root.replaceChildren();
+  const r = s.breaking_rule;
+  $("br-sub").textContent = r.enabled ? `${r.min_sources}+ outlets / ${r.window_minutes} min` : "off";
+  if (!s.alerts.length) { root.append(el("div", "empty", "None in the last 3 days.")); return; }
+  for (const a of s.alerts) {
+    const row = el("div", "alert");
+    row.append(el("div", "w", ago(a.when).toUpperCase()), el("div", null, a.title));
+    root.append(row);
+  }
+}
+
+function renderFeeds(s) {
+  const root = $("feeds");
+  root.replaceChildren();
+  const feeds = [...s.feeds].sort((a, b) => (!!b.error - !!a.error) || a.name.localeCompare(b.name));
+  const bad = feeds.filter((f) => f.error).length;
+  $("feeds-sub").textContent = bad ? `${bad} failing` : `${feeds.length} ok`;
+  $("feeds-sub").className = "sub" + (bad ? " err" : "");
+  for (const f of feeds) {
+    const row = el("div", "feed" + (f.error ? " bad" : ""));
+    const n = el("div", "n");
+    n.append(el("span", "dot" + (f.error ? " bad" : f.enabled ? "" : " off")), f.name + " ", el("span", "h", f.host || ""));
+    row.append(n, el("div", "c", f.error ? "FAILING" : `${f.stories}`));
+    if (f.error) row.title = f.error;
+    root.append(row);
+  }
+}
+
+function render() {
+  if (!status) return;
+  const sel = $("channel");
+  if (status.channels.length > 1) {
+    sel.hidden = false;
+    if (sel.options.length !== status.channels.length) {
+      sel.replaceChildren(...status.channels.map((c) => { const o = el("option", null, `${c.number} ${c.name}`); o.value = c.id; return o; }));
+    }
+    sel.value = channel().id;
+  }
+  renderOnAir(status);
+  renderRundown(status);
+  renderAlerts(status);
+  renderFeeds(status);
+  $("ver").textContent = "anchorless " + status.version;
+  const ch = channel();
+  $("bighint").textContent = ch.running ? "already on - joins instantly" : "starts the channel - about 2 s";
+  const live = ch.running && ch.viewers > 0;
+  $("conn").textContent = live ? `ON AIR · ${ch.viewers} watching` : "STANDING BY";
+  $("conn").className = "pill" + (live ? " live" : " ok");
+}
+
+async function refresh() {
+  try {
+    const r = await fetch("/api/status", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    const first = !status;
+    status = await r.json();
+    if (first) {
+      const want = location.hash.slice(1);
+      channelId = status.channels.some((c) => c.id === want) ? want : status.channels[0].id;
+      setPoster();
+    }
+    render();
+  } catch (e) {
+    $("conn").textContent = "OFFLINE";
+    $("conn").className = "pill";
+  }
+}
+
+$("fsicon").innerHTML = ICON.fs;
+setMuted(false);
+refresh();
+setInterval(refresh, 5000);
+setInterval(() => { if (!player) setPoster(); }, 30000);
+</script>
+</body>
+</html>

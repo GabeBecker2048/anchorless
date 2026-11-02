@@ -27,6 +27,14 @@ player.
   is marked "BREAKING:") interrupts the rundown at the next page. It gets a full
   alert, and then a red tag in the crawl.
 
+## Watch in a browser
+
+Open `http://<host>:9798/` for a viewer and status page: the live channel
+(full screen with `F` or a double-click), the current rundown, breaking alerts,
+and which feeds are working. It is read-only; watching from it starts and stops
+the encoder like any other viewer. (The player is
+[mpegts.js](https://github.com/xqq/mpegts.js), Apache-2.0, bundled.)
+
 ## Quick start
 
 ```sh

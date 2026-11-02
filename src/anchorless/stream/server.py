@@ -4,6 +4,7 @@
   /guide.xml      XMLTV guide
   /live.ts        the stream (MPEG-TS); encoding runs only while someone watches
   /health         JSON status
+  /               a page to watch the channels and see the station's status (web.py)
 
 News is fetched all the time (it is cheap). Drawing and encoding start when
 the first viewer connects and stop ``idle_seconds`` after the last one leaves.
@@ -28,6 +29,7 @@ from .encoder import Encoder
 from .guide import ChannelInfo, channel_list, guide, playlist
 from .playout import Playout
 from .tsbuffer import TS, TsBuffer
+from .web import add_routes
 
 log = logging.getLogger(__name__)
 
@@ -292,6 +294,7 @@ def make_app(cfg: Config) -> web.Application:
     app.router.add_get("/playlist.m3u", st.playlist)
     app.router.add_get("/guide.xml", st.guide)
     app.router.add_get("/health", st.health)
+    add_routes(app, st)
 
     async def background(app: web.Application):
         task = asyncio.create_task(st.newsroom.run())
