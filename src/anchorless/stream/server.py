@@ -71,7 +71,8 @@ class Session:
         self.ch = channel
         cfg = channel.cfg
         self.fps = cfg.video.fps
-        self.lead = cfg.stream.lead_seconds
+        # Plus the frames the encoder holds back while the effects track runs ahead.
+        self.lead = cfg.stream.lead_seconds + Encoder.AUDIO_LEAD_FRAMES / self.fps
         self.encoder = Encoder(cfg)
         self.playout = Playout(cfg, channel.newsroom, datetime.now(UTC), channel.theme)
         self.tsbuf = TsBuffer(self.lead, cfg.video.gop_seconds)
