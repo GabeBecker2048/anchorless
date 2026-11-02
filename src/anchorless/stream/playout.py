@@ -10,14 +10,14 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Protocol
+from typing import Any, Protocol
 
 from PIL import Image, ImageDraw
 
 from ..config import Config
 from ..models import Cluster, Rundown
+from ..render import make_theme
 from ..render.crawl import Crawl
-from ..render.pages import ClassicTheme
 from ..render.theme import PALETTE as P
 
 
@@ -27,7 +27,7 @@ class NewsFeed(Protocol):
     rundown: Rundown | None
     version: int
 
-    def take_breaking(self, now: datetime) -> Cluster | None: ...
+    def next_alert(self, now: datetime, after: int) -> tuple[int, Cluster] | None: ...
     def crawl_items(self, now: datetime) -> list[tuple[str, bool]]: ...
 
 
@@ -35,6 +35,7 @@ class NewsFeed(Protocol):
 class Shot:
     frames: int
     fade_in: bool = True
+    alert: bool = False       # part of a breaking-news alert (the studio goes red)
 
     def image(self, i: int) -> Image.Image:
         raise NotImplementedError
@@ -81,10 +82,10 @@ class Wipe(Shot):
 
 
 class Playout:
-    def __init__(self, cfg: Config, news: NewsFeed, start: datetime, theme: ClassicTheme | None = None) -> None:
+    def __init__(self, cfg: Config, news: NewsFeed, start: datetime, theme: Any = None) -> None:
         self.cfg = cfg
         self.news = news
-        self.theme = theme or ClassicTheme(cfg)
+        self.theme = theme or make_theme(cfg)
         self.fps = cfg.video.fps
         self.start = start
         self.frame_no = 0
@@ -101,6 +102,7 @@ class Playout:
         self._crawl_now = False
         self.on_air: str = ""          # what is showing, for /health and logs
         self._just_broke: set[str] = set()
+        self._alert_seen = 0
 
     def seconds(self, s: float) -> int:
         return max(1, round(s * self.fps))
@@ -119,7 +121,7 @@ class Playout:
             rundown = self.news.rundown
             if rundown is None or rundown.empty:
                 self.on_air = "stand by"
-                yield Still(self.seconds(r.page_seconds / 2), img=t.empty_page())
+                yield Still(self.seconds(r.page_seconds / 2), img=t.empty_page(self.now()))
                 continue
             # The rundown is re-read at every segment boundary, so new stories
             # join there and never in the middle of a page.
@@ -135,7 +137,7 @@ class Playout:
                 continue
             if r.intro_seconds:
                 self.on_air = f"{seg.name}: intro"
-                yield Still(self.seconds(r.intro_seconds), img=t.intro_page(seg.name, clusters))
+                yield Still(self.seconds(r.intro_seconds), img=t.intro_page(seg.name, clusters, self.now()))
             for i, cluster in enumerate(clusters, 1):
                 yield from self._breaking()
                 self.on_air = f"{seg.name}: {cluster.lead.title}"
@@ -143,22 +145,25 @@ class Playout:
                             img=t.story_page(cluster, seg.name, i, len(clusters), self.now()))
 
     def _breaking(self) -> Iterator[Shot]:
-        cluster = self.news.take_breaking(self.now())
-        if cluster is None:
+        hit = self.news.next_alert(self.now(), self._alert_seen)
+        if hit is None:
             return
+        self._alert_seen, cluster = hit
         self._just_broke.add(cluster.key)
         t = self.theme
         self._crawl_now = True
         self.on_air = f"BREAKING: {cluster.lead.title}"
-        title = t.breaking_title(flash=False)
+        now = self.now()
+        title = t.breaking_title(flash=False, now=now)
         if self._last is not None:
-            yield Wipe(self.seconds(0.5), fade_in=False, src=self._last, dst=title, bar=t.px(16))
-        yield Flash(self.seconds(3), fade_in=False, a=title, b=t.breaking_title(flash=True),
+            yield Wipe(self.seconds(0.5), fade_in=False, alert=True, src=self._last, dst=title, bar=t.px(16))
+        yield Flash(self.seconds(3), fade_in=False, alert=True, a=title, b=t.breaking_title(flash=True, now=now),
                     period=self.seconds(0.25))
-        yield Wipe(self.seconds(0.4), fade_in=False, src=title,
-                   dst=(page := t.story_page(cluster, "BREAKING NEWS", 1, 1, self.now(), breaking=True)),
-                   bar=t.px(16))
-        yield Still(self.seconds(self.cfg.rundown.page_seconds * 1.5), fade_in=False, img=page)
+        page = t.story_page(cluster, "BREAKING NEWS", 1, 1, now, breaking=True)
+        yield Wipe(self.seconds(0.4), fade_in=False, alert=True, src=title, dst=page, bar=t.px(16))
+        # The alarm keeps going for a few seconds into the story, then calms down.
+        yield Still(self.seconds(3), fade_in=False, alert=True, img=page)
+        yield Still(self.seconds(self.cfg.rundown.page_seconds * 1.5 - 3), fade_in=False, img=page)
 
     # --- frames ---
 
@@ -178,7 +183,7 @@ class Playout:
         c = self.canvas
         c.paste(img, (0, 0))
         now = self.now()
-        key = f"{now.astimezone(self.cfg.tz):%Y%m%d%H%M}"
+        key = self.theme.clock_key(now)
         if key != self._clock_key:
             self._clock_key = key
             self._clock_img = self.theme.clock(now)
@@ -192,9 +197,11 @@ class Playout:
                 self.crawl = Crawl(self.theme, items, self.fps).continue_from(self.crawl)
             self._crawl_version = self.news.version
             self._crawl_now = False
-        c.paste(self.crawl.window(), (self.theme.crawl_label_w, self.theme.crawl_y + self.theme.px(2)))
+        x, y, _, _ = self.theme.crawl_rect
+        c.paste(self.crawl.window(), (x, y))
+        out = self.theme.overlay(c, self.frame_no, self.fps, shot.alert)
         self.frame_no += 1
-        return c
+        return out
 
     def next_frame(self) -> bytes:
         """The next frame as raw rgb24."""

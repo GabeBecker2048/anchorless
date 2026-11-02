@@ -66,11 +66,13 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("render", help="write PNG stills of each page type")
     p.add_argument("-o", "--out", default="out", help="output directory (default: out)")
+    p.add_argument("-t", "--theme", choices=["studio", "classic"], help="default: the configured theme")
 
     p = sub.add_parser("preview", help="write a short MP4 of the channel")
     p.add_argument("-o", "--out", default="out/preview.mp4")
     p.add_argument("-s", "--seconds", type=float, default=60)
     p.add_argument("--breaking", action="store_true", help="start with a (sample) breaking-news alert")
+    p.add_argument("-t", "--theme", choices=["studio", "classic"], help="default: the configured theme")
 
     sub.add_parser("serve", help="run the channel: /playlist.m3u, /guide.xml, /live.ts, /health")
     sub.add_parser("check-config", help="validate the config and print it")
@@ -96,10 +98,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "render":
         from .render.stills import write_stills
 
-        return asyncio.run(write_stills(cfg, Path(args.out)))
+        return asyncio.run(write_stills(cfg, Path(args.out), args.theme))
     if args.command == "preview":
         from .stream.preview import write_preview
 
+        if args.theme:
+            cfg.theme.name = args.theme
         return asyncio.run(write_preview(cfg, Path(args.out), args.seconds, args.breaking))
     if args.command == "serve":
         from .stream.server import serve

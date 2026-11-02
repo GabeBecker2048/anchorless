@@ -6,20 +6,17 @@ window out of it, so moving it costs almost nothing.
 
 from __future__ import annotations
 
-from PIL import Image, ImageDraw
+from typing import Any
 
-from .pages import ClassicTheme
-from .theme import PALETTE as P
-from .theme import font
+from PIL import Image, ImageDraw
 
 
 class Crawl:
-    def __init__(self, theme: ClassicTheme, items: list[tuple[str, bool]], fps: int) -> None:
+    def __init__(self, theme: Any, items: list[tuple[str, bool]], fps: int) -> None:
         """``items``: (headline, carries the BREAKING tag)."""
         self.theme = theme
-        S = theme.px
-        self.view_w = theme.w - theme.crawl_label_w
-        self.h = theme.crawl_h - S(2)
+        self.style = theme.crawl_style()
+        _, _, self.view_w, self.h = theme.crawl_rect
         # Whole pixels per frame, so the text never shimmers between pixels.
         self.step = max(1, round(theme.cfg.theme.crawl_speed * theme.s / fps))
         self.items = list(items)
@@ -35,8 +32,9 @@ class Crawl:
 
     def _draw(self, items: list[tuple[str, bool]]) -> tuple[Image.Image, int]:
         S = self.theme.px
-        f = font("semibold", S(21))
-        tag_f = font("cond-black", S(16))
+        st = self.style
+        f = st["font"]
+        tag_f = st["tag_font"]
         gap = S(22)
         sep = S(8)
         # Measure one loop of the crawl.
@@ -50,8 +48,10 @@ class Crawl:
         loop_w = max(x, 1)
         # Repeat until it is wider than loop + view, so a crop never wraps.
         copies = 1 + -(-self.view_w // loop_w)
-        strip = Image.new("RGB", (loop_w * (copies + 1), self.h), P.crawl_bg)
+        strip = Image.new("RGB", (loop_w * (copies + 1), self.h), st["bg"])
         d = ImageDraw.Draw(strip)
+        if st.get("crisp"):
+            d.fontmode = "1"
         cy = self.h / 2
         base = cy + (-f.getbbox("H", anchor="ls")[1]) / 2
         tag_base = cy + (-tag_f.getbbox("H", anchor="ls")[1]) / 2
@@ -60,12 +60,12 @@ class Crawl:
                 x = c * loop_w + px
                 if breaking:
                     tw = tag_f.getlength("BREAKING") + S(14)
-                    d.rectangle([x, cy - S(11), x + tw, cy + S(11)], fill=P.red)
-                    d.text((x + S(7), tag_base), "BREAKING", font=tag_f, fill=P.white, anchor="ls")
+                    d.rectangle([x, cy - S(11), x + tw, cy + S(11)], fill=st["tag_bg"])
+                    d.text((x + S(7), tag_base), "BREAKING", font=tag_f, fill=st["tag_text"], anchor="ls")
                     x += tw + S(10)
-                d.text((x, base), text, font=f, fill=P.white, anchor="ls")
+                d.text((x, base), text, font=f, fill=st["text"], anchor="ls")
                 x += f.getlength(text) + gap
-                d.rectangle([x, cy - sep / 2, x + sep, cy + sep / 2], fill=P.red)
+                d.rectangle([x, cy - sep / 2, x + sep, cy + sep / 2], fill=st["sep"])
         return strip, loop_w
 
     def advance(self) -> bool:
@@ -80,7 +80,7 @@ class Crawl:
         if self.offset >= 0 or self.lead_in is None:
             return self.strip.crop((self.offset, 0, self.offset + self.view_w, self.h))
         shown = self.offset + self.view_w          # pixels of the old window already gone
-        img = Image.new("RGB", (self.view_w, self.h), P.crawl_bg)
+        img = Image.new("RGB", (self.view_w, self.h), self.style["bg"])
         img.paste(self.lead_in.crop((shown, 0, self.view_w, self.h)), (0, 0))
         if shown > 0:
             img.paste(self.strip.crop((0, 0, shown, self.h)), (self.view_w - shown, 0))

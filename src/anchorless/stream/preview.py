@@ -22,7 +22,7 @@ async def write_preview(cfg: Config, out: Path, seconds: float, breaking: bool) 
     if breaking and not rundown.empty:
         # Pretend the top story just broke, to see the alert.
         top = rundown.segments[0].clusters[0]
-        room.breaking_queue.append((top, now))
+        room.raise_alert(top, now)
         room.add_breaking_tag(top, now)
     enc = Encoder(cfg, output=str(out), fmt="mp4", duration=seconds)
     await enc.start()

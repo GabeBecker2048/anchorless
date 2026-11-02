@@ -195,10 +195,24 @@ def default_sources() -> list[SourceConfig]:
 
 
 class ThemeConfig(_Model):
-    name: Literal["classic"] = "classic"
+    name: Literal["studio", "classic"] = "studio"
     crawl_label: str = "HEADLINES"
     # Pixels per second at 480 lines; scaled with the output height.
     crawl_speed: float = Field(96, gt=0)
+
+
+class ExtraChannelConfig(_Model):
+    """Another channel from the same news, e.g. the same rundown in a different theme."""
+
+    name: str
+    number: str
+    id: str
+    theme: Literal["studio", "classic"] = "classic"
+
+    @field_validator("number", mode="before")
+    @classmethod
+    def _number_as_text(cls, v: Any) -> str:
+        return str(v)
 
 
 class DataConfig(_Model):
@@ -215,12 +229,16 @@ class Config(_Model):
     breaking: BreakingConfig = Field(default_factory=BreakingConfig)
     source: list[SourceConfig] = Field(default_factory=default_sources)
     theme: ThemeConfig = Field(default_factory=ThemeConfig)
+    extra_channel: list[ExtraChannelConfig] = Field(default_factory=list)
     data: DataConfig = Field(default_factory=DataConfig)
 
     @model_validator(mode="after")
     def _has_sources(self) -> Config:
         if not any(s.enabled for s in self.source):
             raise ValueError("no enabled [[source]] entries")
+        ids = [self.channel.id] + [c.id for c in self.extra_channel]
+        if len(set(ids)) != len(ids):
+            raise ValueError("channel ids must be unique")
         return self
 
     @property

@@ -47,8 +47,9 @@ def outlets_line(cluster: Cluster, limit: int = 3) -> str:
 
 
 class ClassicTheme:
-    def __init__(self, cfg: Config) -> None:
+    def __init__(self, cfg: Config, channel_name: str | None = None) -> None:
         self.cfg = cfg
+        self.channel_name = (channel_name or cfg.channel.name).upper()
         self.w = cfg.video.width
         self.h = cfg.video.height
         self.s = self.h / 480
@@ -62,6 +63,7 @@ class ClassicTheme:
         self.logo_w = S(150)
         self.clock_box = (self.w - S(230), 0, self.w, self.header_h - S(3))
         self.crawl_label_w = S(132)
+        self.crawl_rect = (self.crawl_label_w, self.crawl_y + S(2), self.w - self.crawl_label_w, self.crawl_h - S(2))
 
     def px(self, v: float) -> int:
         return round(v * self.s)
@@ -79,7 +81,7 @@ class ClassicTheme:
         d.polygon([(0, 0), (self.logo_w + slant, 0), (self.logo_w, self.header_h - S(3)),
                    (0, self.header_h - S(3))], fill=logo)
         f = font("cond-black", S(38))
-        name = self.cfg.channel.name.upper()
+        name = self.channel_name
         nw = f.getlength(name)
         while nw > self.logo_w - S(16) and f.size > S(18):
             f = font("cond-black", f.size - 2)
@@ -142,7 +144,7 @@ class ClassicTheme:
         if breaking:
             hd = ImageDraw.Draw(header)
             f = font("cond-black", S(38))
-            name = self.cfg.channel.name.upper()
+            name = self.channel_name
             nw = f.getlength(name)
             hd.text(((self.logo_w - nw) / 2 + S(4), self._baseline(f, (self.header_h - S(3)) / 2)),
                     name, font=f, fill=P.red, anchor="ls")
@@ -198,7 +200,7 @@ class ClassicTheme:
                 d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill)
         return img
 
-    def intro_page(self, segment: str, clusters: list[Cluster]) -> Image.Image:
+    def intro_page(self, segment: str, clusters: list[Cluster], now: datetime | None = None) -> Image.Image:
         S = self.px
         img, d = self._frame(self._header(""), self.body_bg)
         x = self.margin
@@ -228,13 +230,13 @@ class ClassicTheme:
                 break
         return img
 
-    def breaking_title(self, flash: bool) -> Image.Image:
+    def breaking_title(self, flash: bool, now: datetime | None = None) -> Image.Image:
         """The full-screen "BREAKING NEWS" card; ``flash`` swaps the colors."""
         S = self.px
         header = self._header("", logo=P.white, bar=P.red)
         hd = ImageDraw.Draw(header)
         f = font("cond-black", S(38))
-        name = self.cfg.channel.name.upper()
+        name = self.channel_name
         nw = f.getlength(name)
         hd.text(((self.logo_w - nw) / 2 + S(4), self._baseline(f, (self.header_h - S(3)) / 2)),
                 name, font=f, fill=P.red, anchor="ls")
@@ -251,7 +253,7 @@ class ClassicTheme:
         draw_tracked(d, ((self.w - tw) / 2, self._baseline(f, cy) - f.getmetrics()[0]), text, f, P.red, S(3))
         return img
 
-    def empty_page(self) -> Image.Image:
+    def empty_page(self, now: datetime | None = None) -> Image.Image:
         S = self.px
         img, d = self._frame(self._header("STAND BY"), self.body_bg)
         cy = (self.header_h + self.crawl_y) / 2
@@ -263,6 +265,17 @@ class ClassicTheme:
         return img
 
     # --- the parts that change every frame ---
+
+    def crawl_style(self) -> dict:
+        S = self.px
+        return {"font": font("semibold", S(21)), "tag_font": font("cond-black", S(16)), "bg": P.crawl_bg,
+                "text": P.white, "sep": P.red, "tag_bg": P.red, "tag_text": P.white}
+
+    def clock_key(self, now: datetime) -> str:
+        return f"{now.astimezone(self.cfg.tz):%Y%m%d%H%M}"
+
+    def overlay(self, canvas: Image.Image, frame: int, fps: int, alert: bool) -> Image.Image:
+        return canvas
 
     def clock(self, now: datetime) -> Image.Image:
         S = self.px

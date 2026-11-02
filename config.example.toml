@@ -85,9 +85,17 @@ crawl_tag_minutes = 60        # how long it keeps the red BREAKING tag in the cr
 title_prefixes = ["BREAKING:", "BREAKING NEWS:"]
 
 [theme]
-name = "classic"
+name = "studio"               # "studio" (pixel-art news set) or "classic" (cable-news pages)
 crawl_label = "HEADLINES"
 crawl_speed = 96              # pixels per second at 480 lines
+
+# More channels from the same news (one fetch feeds them all), e.g. the
+# Classic look on its own channel number. Each one gets its own stream.
+# [[extra_channel]]
+# name = "NEWS CLASSIC"
+# number = "97"
+# id = "anchorless.classic"
+# theme = "classic"
 
 [data]
 dir = "data"                  # SQLite memory of stories already seen
