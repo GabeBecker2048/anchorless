@@ -33,6 +33,16 @@ class ChannelConfig(_Model):
     timezone: str = "America/Chicago"
     guide_title: str = "Anchorless News"
     guide_description: str = "Around-the-clock headlines from national and world news outlets."
+    # The guide lists the newscast in blocks this long, starting on the hour
+    # (30 = :00 and :30). 1440 = one programme per day.
+    guide_slot_minutes: int = Field(30, ge=5, le=1440)
+
+    @field_validator("guide_slot_minutes")
+    @classmethod
+    def _divides_the_day(cls, v: int) -> int:
+        if 1440 % v:
+            raise ValueError("guide_slot_minutes must divide a day evenly (15, 30, 60, ...)")
+        return v
 
     @field_validator("number", mode="before")
     @classmethod

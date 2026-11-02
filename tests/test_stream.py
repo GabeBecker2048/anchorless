@@ -95,10 +95,18 @@ def test_guide_and_playlist_with_an_extra_channel():
     from anchorless.config import ExtraChannelConfig
 
     cfg = Config(extra_channel=[ExtraChannelConfig(name="NEWS CLASSIC", number=97, id="x.classic")])
+    # Half-hour blocks on :00 and :30, through the DST change (2026-11-01 in Chicago,
+    # a 25-hour day: 50 blocks, then 48 a day).
     text = guide(cfg, datetime(2026, 11, 1, 12, tzinfo=UTC))
-    # DST ends on 2026-11-01 in Chicago: the first day is 25 hours long.
+    assert 'start="20261101000000 -0500" stop="20261101003000 -0500"' in text
+    assert 'start="20261101013000 -0500" stop="20261101010000 -0600"' in text
+    assert 'start="20261101010000 -0600" stop="20261101013000 -0600"' in text
+    assert text.count("<channel ") == 2 and text.count("<programme ") == 2 * (50 + 48 + 48)
+    # One programme per day, midnight to midnight.
+    daily = Config(channel={"guide_slot_minutes": 1440}, extra_channel=cfg.extra_channel)
+    text = guide(daily, datetime(2026, 11, 1, 12, tzinfo=UTC))
     assert 'start="20261101000000 -0500" stop="20261102000000 -0600"' in text
-    assert text.count("<channel ") == 2 and text.count("<programme ") == 6
+    assert text.count("<programme ") == 6
     m3u = playlist(cfg, "host:9798").splitlines()
     assert 'tvg-chno="98"' in m3u[1] and m3u[2] == "http://host:9798/live.ts"
     assert 'tvg-chno="97"' in m3u[3] and m3u[4] == "http://host:9798/live/x.classic.ts"
