@@ -34,7 +34,7 @@ _NUMBER = re.compile(r"^\d+(\.\d+)?$")
 class _ChannelSettings(_Model):
     """What [channel] and every [[extra_channel]] have in common."""
 
-    theme: Literal["studio", "classic", "classic-dark"]
+    theme: Literal["studio", "classic", "classic-light", "classic-dark"]
     # "both": a TV channel (in /playlist.m3u and /guide.xml) and on the web page;
     # "tv": TV only; "web": web page only. This is where a channel is listed - any
     # channel's stream URL still plays for whoever opens it.

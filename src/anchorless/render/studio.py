@@ -23,7 +23,7 @@ from PIL import Image, ImageDraw, ImageFont
 from ..config import Config
 from ..models import Cluster
 from .pages import ago, outlets_line
-from .theme import wrap
+from .theme import DAYTIME, wrap
 
 FONT_DIR = files("anchorless") / "fonts"
 
@@ -127,7 +127,7 @@ def lighting_at(hour: float) -> Lighting:
 # The sun and the moon each cross the window on their own arc: up from behind the
 # rooftops on the left, over the top, and down behind the rooftops on the right.
 # One is always down before the other comes up, so neither appears mid-sky.
-SUN_HOURS = (6.0, 19.0)        # rises, sets (local hour)
+SUN_HOURS = DAYTIME           # rises, sets (local hour) - also when auto Classic is light
 MOON_HOURS = (19.5, 5.5)       # rises in the evening, sets the next morning
 SUN_LOW, SUN_HIGH = (255, 140, 80), (255, 244, 170)
 MOON_COLOR = (230, 230, 210)

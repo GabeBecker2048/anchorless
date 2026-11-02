@@ -22,6 +22,7 @@ import hashlib
 import os
 import tempfile
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,7 @@ from .config import (
     parse_config,
     resolve_local_path,
 )
+from .render.theme import resolve_look
 
 SOUNDS = ["auto", "chiptune", "news", "none"]
 
@@ -277,7 +279,8 @@ class Settings:
             "segments": [s.model_dump(exclude_defaults=True) | {"name": s.name} for s in cfg.rundown.segment],
             "feeds": self._feeds(cfg, doc, files),
             "file_only": self._file_only(cfg),
-            "themes": ["studio", "classic", "classic-dark"],
+            "classic_now": resolve_look("classic", datetime.now(UTC), cfg.tz),
+            "themes": ["studio", "classic", "classic-light", "classic-dark"],
             "scopes": ["local", "national", "world"],
         }
 
@@ -285,7 +288,8 @@ class Settings:
         out = []
         for i, ch in enumerate([cfg.channel, *cfg.extra_channel]):
             locked = [f for f in CHANNEL_FIELDS if i == 0 and ("channel", f) in self.locked]
-            out.append({"main": i == 0, "id": ch.id, "theme": ch.theme, "name": ch.name,
+            look = resolve_look(ch.theme, datetime.now(UTC), cfg.tz)
+            out.append({"main": i == 0, "id": ch.id, "theme": ch.theme, "look": look, "name": ch.name,
                         "show_on": ch.show_on, "channel_number": ch.channel_number, "locked": locked})
         return out
 

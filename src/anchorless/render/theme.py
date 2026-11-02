@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, tzinfo
 from functools import lru_cache
 from importlib.resources import files
 
@@ -45,6 +46,22 @@ class Palette:
 
 
 PALETTE = Palette()
+
+# Daytime, local hours: the Studio window's sun is up, and the auto Classic look is light.
+DAYTIME = (6.0, 19.0)
+
+
+def is_daytime(now: datetime, tz: tzinfo) -> bool:
+    local = now.astimezone(tz)
+    hour = local.hour + local.minute / 60
+    return DAYTIME[0] <= hour < DAYTIME[1]
+
+
+def resolve_look(theme: str, now: datetime, tz: tzinfo) -> str:
+    """The look a theme has right now: "classic" is light by day and dark at night."""
+    if theme == "classic":
+        return "classic-light" if is_daytime(now, tz) else "classic-dark"
+    return theme
 
 # Classic dark: the same pages in charcoal and near-black instead of blue.
 DARK_PALETTE = Palette(

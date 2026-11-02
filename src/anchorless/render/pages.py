@@ -21,6 +21,7 @@ from .theme import (
     fit,
     font,
     gradient,
+    is_daytime,
     stripes,
     tracked_width,
     wrap,
@@ -312,3 +313,52 @@ class ClassicTheme:
         dw = df.getlength(date)
         d.text((right - aw - S(5) - tw - S(14) - dw, base), date, font=df, fill=P.muted, anchor="ls")
         return img
+
+
+class AutoClassicTheme:
+    """theme = "classic": the Classic pages, light by day and dark at night.
+
+    Holds a light and a dark ClassicTheme and draws each page with the one that
+    fits the time the page is for, so the switch happens at the next page.
+    Everything about size and layout is the same in both.
+    """
+
+    kind = "classic"
+
+    def __init__(self, cfg: Config, channel_name: str | None = None) -> None:
+        self.cfg = cfg
+        self.light = ClassicTheme(cfg, channel_name)
+        self.dark = ClassicTheme(cfg, channel_name, dark=True)
+
+    def current(self, now: datetime | None = None) -> ClassicTheme:
+        now = now or datetime.now(self.cfg.tz)
+        return self.light if is_daytime(now, self.cfg.tz) else self.dark
+
+    def story_page(self, cluster: Cluster, segment: str, index: int, total: int, now: datetime,
+                   breaking: bool = False) -> Image.Image:
+        return self.current(now).story_page(cluster, segment, index, total, now, breaking)
+
+    def intro_page(self, segment: str, clusters: list[Cluster], now: datetime | None = None) -> Image.Image:
+        return self.current(now).intro_page(segment, clusters, now)
+
+    def breaking_title(self, flash: bool, now: datetime | None = None) -> Image.Image:
+        return self.current(now).breaking_title(flash, now)
+
+    def empty_page(self, now: datetime | None = None) -> Image.Image:
+        return self.current(now).empty_page(now)
+
+    def clock_key(self, now: datetime) -> str:
+        t = self.current(now)
+        return ("L" if t is self.light else "D") + t.clock_key(now)
+
+    def clock(self, now: datetime) -> Image.Image:
+        return self.current(now).clock(now)
+
+    def crawl_style(self) -> dict:
+        return self.current().crawl_style()
+
+    def overlay(self, canvas: Image.Image, frame: int, fps: int, alert: bool) -> Image.Image:
+        return self.current().overlay(canvas, frame, fps, alert)
+
+    def __getattr__(self, name: str):
+        return getattr(self.light, name)        # sizes and positions: the same in both
