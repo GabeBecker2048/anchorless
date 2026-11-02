@@ -45,6 +45,12 @@ def write_music_list(files: list[Path], path: Path, passes: int = MUSIC_PASSES) 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def frame_format(cfg: Config) -> str:
+    """The raw frame layout the encoder expects: Pillow's packer name."""
+    v = cfg.video
+    return "BGRX" if v.encoder == "vaapi" and v.vaapi_convert == "gpu" else "RGB"
+
+
 def ffmpeg_args(cfg: Config, music_list: Path | None, output: str = "pipe:1", fmt: str = "mpegts",
                 duration: float | None = None) -> list[str]:
     v, a = cfg.video, cfg.audio
@@ -53,7 +59,8 @@ def ffmpeg_args(cfg: Config, music_list: Path | None, output: str = "pipe:1", fm
     args = ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-nostdin"]
     if vaapi:
         args += ["-vaapi_device", v.vaapi_device]
-    args += ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{v.width}x{v.height}", "-framerate", str(v.fps),
+    gpu_convert = vaapi and v.vaapi_convert == "gpu"
+    args += ["-f", "rawvideo", "-pix_fmt", "bgr0" if gpu_convert else "rgb24", "-s", f"{v.width}x{v.height}", "-framerate", str(v.fps),
              "-thread_queue_size", "256", "-i", "pipe:0"]
     # No -re anywhere: the music is read only as fast as the video timeline needs it.
     if music_list:
@@ -61,8 +68,11 @@ def ffmpeg_args(cfg: Config, music_list: Path | None, output: str = "pipe:1", fm
     args += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
 
     # Our frames are full-range RGB; TV video is limited-range BT.709.
-    video = "[0:v]scale=out_color_matrix=bt709:out_range=tv," + ("format=nv12,hwupload" if vaapi
-                                                                 else "format=yuv420p") + "[v]"
+    if gpu_convert:
+        video = "[0:v]hwupload,scale_vaapi=format=nv12:out_color_matrix=bt709:out_range=tv[v]"
+    else:
+        video = "[0:v]scale=out_color_matrix=bt709:out_range=tv," + ("format=nv12,hwupload" if vaapi
+                                                                     else "format=yuv420p") + "[v]"
     if music_list:
         # The silent track keeps audio flowing even if the music runs out or fails.
         audio = f"[1:a]volume={a.volume},aresample=48000[m];[m][2:a]amix=inputs=2:duration=longest:normalize=0[a]"

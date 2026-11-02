@@ -112,6 +112,18 @@ def test_ffmpeg_args():
     args = ffmpeg_args(cfg, None)
     assert "h264_vaapi" in args and "-vaapi_device" in args
     assert any("hwupload" in a for a in args)
+    cfg.video.vaapi_convert = "gpu"
+    args = ffmpeg_args(cfg, None)
+    assert "bgr0" in args and any("scale_vaapi" in a for a in args)
+
+
+def test_gpu_convert_frames_are_bgrx(stories, cfg):
+    cfg.video.encoder = "vaapi"
+    cfg.video.vaapi_convert = "gpu"
+    cfg.video.fps = 2
+    rundown = build_rundown(all_clusters(stories, cfg, NOW), cfg, NOW)
+    frame = Playout(cfg, FakeNews(rundown), NOW).next_frame()
+    assert len(frame) == cfg.video.width * cfg.video.height * 4
 
 
 def test_breaking_story_not_repeated_but_no_dead_loop(stories, cfg):

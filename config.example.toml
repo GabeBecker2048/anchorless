@@ -29,6 +29,7 @@ encoder = "x264"              # "x264" (CPU) or "vaapi" (Intel/AMD GPU)
 vaapi_device = "/dev/dri/renderD128"
 vaapi_rc = "vbr"              # "cqp" for older Intel GPUs (i965 driver) that reject bitrates
 vaapi_qp = 24                 # quality for "cqp" (lower = better)
+vaapi_convert = "cpu"         # "gpu" converts colours on the GPU too (less CPU; newer Intel drivers)
 bitrate = "1500k"
 maxrate = "2000k"
 gop_seconds = 2               # a keyframe every 2 s: how fast a joining viewer can start
