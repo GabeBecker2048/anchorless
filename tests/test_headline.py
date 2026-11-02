@@ -116,3 +116,28 @@ def test_a_chosen_headline_sticks():
     first = headline.choose(c, 0.15)
     again = headline.choose(c, 0.15, previous_key=first.chosen.key)
     assert again.chosen is first.chosen
+
+
+def test_quoted_speech_is_not_the_outlets_own_words():
+    s = "The coach spoke after the game on Sunday."
+    for title in ('Coach says "We\'ll be back!" after playoff loss',
+                  "Senator calls ruling “outrageous” and vows appeal",
+                  "Lions say 'preliminary indications are positive' for Campbell"):
+        c = cluster(story("A", title, s), story("B", "Coach speaks after playoff loss", s))
+        a = next(v for v in headline.score_versions(c) if v.story.outlet == "A")
+        assert not a.penalties, (title, a.penalties)
+    # Outside the quotes it still counts.
+    c = cluster(story("A", 'Senator SLAMS "partisan" ruling!', s), story("B", "Senator criticizes ruling", s))
+    a = next(v for v in headline.score_versions(c) if v.story.outlet == "A")
+    assert any("loaded" in p for p in a.penalties) and "exclamation" in a.penalties
+    assert headline.outside_quotes("Michigan's governor 'won't back down', aide says") == "Michigan's governor  , aide says"
+
+
+def test_literal_uses_are_not_loaded():
+    s = "Officials said on Monday."
+    for title in ("Fire destroys 40 homes in California", "Volcano erupts in Iceland",
+                  "Explosive device found near station", "Blasts heard across the capital",
+                  "Brutal heat wave grips Texas", "Toxic fumes force evacuation"):
+        c = cluster(story("A", title, s), story("B", "Officials respond on Monday", s))
+        a = next(v for v in headline.score_versions(c) if v.story.outlet == "A")
+        assert not any("loaded" in p for p in a.penalties), title

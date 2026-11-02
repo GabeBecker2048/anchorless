@@ -30,12 +30,14 @@ CORROBORATION_WEIGHT, COVERAGE_WEIGHT = 0.7, 0.3
 
 # Editorializing words, as they appear in headlines. Deliberately short: a word goes
 # here only if it is almost always opinion when one outlet uses it and the others don't.
+# Words with common literal meanings in news are left out on purpose: erupts (volcanoes),
+# explosive / blasts / blasted (explosions), destroys (fires), brutal (heat), fumes (gas).
 LOADED_WORDS = frozenset("""
-slams slammed slamming rips ripped blasts blasted torches torched eviscerates eviscerated
-destroys obliterates obliterated shreds shredded skewers skewered mocks mocked owns owned
+slams slammed slamming rips ripped torches torched eviscerates eviscerated
+obliterates obliterated shreds shredded skewers skewered mocks mocked owns owned
 meltdown unhinged bombshell shocking stunning humiliating humiliation disgraceful disgusting
-insane outrageous laughable pathetic brutal epic jaw-dropping explosive scathing
-lashes erupts furious fumes seethes
+insane outrageous laughable pathetic epic jaw-dropping scathing
+lashes furious seethes
 """.split())
 PENALTY_LOADED, PENALTY_LOADED_CAP = 0.06, 0.15
 PENALTY_CAPS, PENALTY_EXCLAIM, PENALTY_QUESTION = 0.05, 0.05, 0.03
@@ -49,6 +51,15 @@ ESPN PTI NASCAR FIFA UEFA OSHA FEMA NOAA HUD USDA NTSB NHTSA PGA LPGA WNBA MLS N
 """.split())
 
 _WORD = re.compile(r"[A-Za-z][A-Za-z'’-]*")
+# Quoted speech: what someone *said*, not the outlet's own words. Double quotes, or single
+# quotes that open at the start of a word (so the apostrophe in "Michigan's" isn't one).
+_QUOTES = re.compile(r"[\"“”][^\"“”]*[\"“”]"
+                     r"|(?<![\w’'])['‘](?:[^'‘’]|(?<=\w)['’](?=\w))+['’](?!\w)")   # apostrophes inside allowed
+
+
+def outside_quotes(text: str) -> str:
+    """The headline without its quoted passages."""
+    return _QUOTES.sub(" ", text or "")
 
 
 @dataclass
@@ -71,8 +82,9 @@ def _words(text: str) -> list[str]:
 def _penalties(s: Story, others: list[Story], all_others_question: bool) -> list[tuple[str, float]]:
     out: list[tuple[str, float]] = []
     title = s.title
+    own = outside_quotes(title)           # loaded words and "!" only count in the outlet's own words
     other_headline_words = {w.lower() for o in others for w in _words(o.title)}
-    loaded = [w for w in {w.lower() for w in _words(title)} if w in LOADED_WORDS and w not in other_headline_words]
+    loaded = [w for w in {w.lower() for w in _words(own)} if w in LOADED_WORDS and w not in other_headline_words]
     if loaded:
         out.append((f"loaded: {', '.join(sorted(loaded))}", min(PENALTY_LOADED * len(loaded), PENALTY_LOADED_CAP)))
     # Shouting, not acronyms: an all-caps word of 6+ letters, or two of 5+ in a row.
@@ -81,7 +93,7 @@ def _penalties(s: Story, others: list[Story], all_others_question: bool) -> list
     if any(s and len(w) >= 6 for s, w in zip(shout, words, strict=True)) or any(
             a and b for a, b in zip(shout, shout[1:], strict=False)):
         out.append(("all caps", PENALTY_CAPS))
-    if "!" in title:
+    if "!" in own:
         out.append(("exclamation", PENALTY_EXCLAIM))
     if title.rstrip().endswith("?") and not all_others_question:
         out.append(("question", PENALTY_QUESTION))

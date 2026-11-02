@@ -66,7 +66,8 @@ When several outlets carry the same story, Anchorless shows one headline. By
 default that is the first-published version. With `[rundown] headline_choice =
 "consensus"`, that version is replaced only when it has a red flag - an
 editorializing word no other outlet uses ("slams", "meltdown"...), shouting in
-capitals, an exclamation mark, or wording almost none of the other outlets share -
+capitals, an exclamation mark, or wording almost none of the other outlets share
+(words and "!" inside quotation marks are someone's quote, so they don't count) -
 and another version is clean, at least as complete, and clearly better by
 `headline_margin`. No outlet is named or rated anywhere: the choice comes only from
 what the outlets wrote. `"log"` (the default) keeps the first-published headline
