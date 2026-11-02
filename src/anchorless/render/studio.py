@@ -211,7 +211,10 @@ class StudioTheme:
     kind = "studio"
     SCALE = 2
     FLOOR_Y = 168
-    DESK = (120, 300, 176, 212, 12)          # x0, x1, top, bottom, depth
+    # x0, x1, top, bottom, depth. The front face sits left of the screen's centre on
+    # purpose: with its 12 deep top (2 px right per step back), the desk as a whole
+    # reads as centred under the screen (x 213.5).
+    DESK = (112, 292, 176, 212, 12)
     TANK = (340, 166, 50, 30, 10)            # x, y, w, h, depth (the glass box)
 
     def __init__(self, cfg: Config, channel_name: str | None = None) -> None:
@@ -394,29 +397,37 @@ class StudioTheme:
         _box(d, dx0 + 1, dtop + 1, dx1 - 1, dtop + 3, GOLD)                 # brass trim
         _box(d, dx0 + 1, dbot - 4, dx1 - 1, dbot - 1, DESK_EDGE)
         _box(d, dx0 + 1, dbot - 6, dx1 - 1, dbot - 6, CYAN)                 # LED strip
-        _box(d, cx - 44, dtop + 8, cx + 44, dbot - 9, INK)                  # logo panel
-        _box(d, cx - 43, dtop + 9, cx + 43, dbot - 10, RED_DARK)
-        _box(d, cx - 43, dtop + 9, cx + 43, dtop + 10, RED)
+        fc = (dx0 + dx1) // 2                                               # the front face's centre
+        _box(d, fc - 44, dtop + 8, fc + 44, dbot - 9, INK)                  # logo panel
+        _box(d, fc - 43, dtop + 9, fc + 43, dbot - 10, RED_DARK)
+        _box(d, fc - 43, dtop + 9, fc + 43, dtop + 10, RED)
 
         # On the desk: the breaking-news beacon (off), papers, the mic, coffee.
         x0, y0, x1, y1 = self.BEACON
-        iso_box(d, x0 - 2, y1, x1 - x0 + 4, 3, 2, (60, 60, 76), (40, 40, 52), (90, 90, 110))   # base
+        # The base; the dome stands on the middle of its top, which is half the base's
+        # depth back from its front face: 2 px right and 1 px up.
+        iso_box(d, x0 - 4, y1 + 1, x1 - x0 + 4, 3, 2, (60, 60, 76), (40, 40, 52), (90, 90, 110))
         d.rounded_rectangle([x0, y0, x1, y1 + 1], radius=4, fill=RED_DARK, outline=INK)       # dome
         _box(d, x0 + 2, y0 + 3, x0 + 3, y1 - 2, (190, 60, 80))                                 # glint
         for yy in range(y0 + 4, y1, 3):                                                        # fresnel ribs
             d.line([(x0 + 5, yy), (x1 - 2, yy)], fill=(110, 16, 34))
-        iso_box(d, dx0 + 34, dtop - 4, 22, 2, 4, WHITE, (200, 200, 216), (230, 230, 244))
-        iso_box(d, dx0 + 36, dtop - 7, 20, 2, 4, (236, 236, 248), (190, 190, 206), WHITE)
+        px_ = 154                                     # the papers: clear of the beacon
+        iso_box(d, px_, dtop - 4, 22, 2, 4, WHITE, (200, 200, 216), (230, 230, 244))
+        iso_box(d, px_ + 2, dtop - 7, 20, 2, 4, (236, 236, 248), (190, 190, 206), WHITE)
         # The desk mic, in isometric: a weighted base, a pole and a capsule with a grille.
         MIC, MIC_SIDE, MIC_TOP = (96, 96, 118), (58, 58, 74), (150, 150, 172)
+        # It stays in line with the chair when the desk moves.
         iso_box(d, cx - 6, dtop - 5, 11, 2, 4, MIC, MIC_SIDE, MIC_TOP)        # base
-        px0 = cx + 1                                                         # the pole: centre of the base
-        _box(d, px0 - 1, dtop - 19, px0 + 1, dtop - 8, INK)
-        _box(d, px0, dtop - 19, px0, dtop - 8, MIC_TOP)                      # lit side
-        iso_box(d, px0 - 3, dtop - 27, 5, 8, 2, MIC, MIC_SIDE, MIC_TOP)      # capsule
-        for gy in range(dtop - 25, dtop - 20, 2):                            # grille
-            d.line([(px0 - 2, gy), (px0 + 1, gy)], fill=MIC_SIDE)
-        _box(d, px0 - 2, dtop - 26, px0 - 2, dtop - 21, MIC_TOP)             # highlight
+        # The pole stands on the middle of the base's top: the front face's centre
+        # plus half the base's depth back (2 px right, 1 px up per step back).
+        px0, pb = cx + 3, dtop - 7
+        _box(d, px0 - 1, pb - 11, px0 + 1, pb, INK)
+        _box(d, px0, pb - 11, px0, pb, MIC_TOP)                              # lit side
+        # The head is 2 deep, so its front face sits 2 px left of the pole to look centred on it.
+        iso_box(d, px0 - 5, pb - 19, 5, 8, 2, MIC, MIC_SIDE, MIC_TOP)        # capsule
+        for gy in range(pb - 17, pb - 12, 2):                                # grille
+            d.line([(px0 - 4, gy), (px0 - 1, gy)], fill=MIC_SIDE)
+        _box(d, px0 - 4, pb - 18, px0 - 4, pb - 13, MIC_TOP)                 # highlight
         mx, my = self.MUG
         iso_box(d, mx, my, 10, 12, 3, WHITE, (196, 196, 214), COFFEE)         # the mug
         _box(d, mx + 1, my + 1, mx + 9, my + 1, (60, 36, 24))
@@ -448,7 +459,7 @@ class StudioTheme:
         return img
 
     MUG = (270, 163)
-    BEACON = (134, 158, 145, 170)        # the dome on the desk: x0, y0, x1, y1 (logical)
+    BEACON = (136, 157, 147, 169)        # the dome on the desk: x0, y0, x1, y1 (logical)
 
     @cached_property
     def front_big(self) -> Image.Image:
