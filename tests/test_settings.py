@@ -393,10 +393,10 @@ def test_session_and_viewer_limits(cfg_file):
         assert st.cfg.stream.max_sessions == 2 and st.cfg.stream.max_viewers == -1       # the defaults
         st.cfg.stream.max_sessions = 1
         main.session = object()                       # pretend NEWS is on
-        assert st._admit(main, True) is None          # joining a channel that is on: fine
-        assert "max_sessions" in st._admit(b, True)   # a second channel would be one too many
+        assert st._admit(main, "10.0.0.9") is None          # joining a channel that is on: fine
+        assert "max_sessions" in st._admit(b, "10.0.0.9")   # a second channel would be one too many
         st.cfg.stream.max_sessions = -1
-        assert st._admit(b, True) is None             # -1: no limit
+        assert st._admit(b, "10.0.0.9") is None             # -1: no limit
         main.session = None
         st.cfg.stream.max_viewers = 0                 # 0: online, but nobody can watch
         r = await client.get("/live.ts")
@@ -432,3 +432,58 @@ def test_viewer_page_https_is_optional_and_never_the_tv_side(cfg_file):
             assert (await client.get(tv, headers=lan_http)).status == 200, tv
         assert (await client.head("/live.ts", headers=lan_http)).status == 200
     _app_test(cfg_file, {}, body)
+
+
+def test_viewers_are_counted_by_real_address(cfg_file):
+    cfg_file.write_text(cfg_file.read_text() + '\n[admin]\ntrusted_proxies = ["10.9.9.9"]\n')
+
+    async def body(client, app):
+        from types import SimpleNamespace
+        st = app["station"]
+        main = st.channels["anchorless.news"]
+        main.session = object()
+        class Viewer:                                                   # stands in for a stream client
+            peer = "192.168.1.50"
+        main.clients.add(Viewer())                                      # already watching from .50
+        st.cfg.stream.max_viewers_per_client = 1
+        assert "per address" in st._admit(main, "192.168.1.50")        # a second one from .50: no
+        assert st._admit(main, "192.168.1.51") is None                  # another address: fine
+        st.cfg.stream.max_viewers_per_client = -1
+        assert st._admit(main, "192.168.1.50") is None                  # -1: no limit
+        # A faked X-Forwarded-For from a client that is not a trusted proxy is ignored:
+        # the viewer is still the address it connected from.
+        req = SimpleNamespace(remote="203.0.113.7", headers={"X-Forwarded-For": "1.2.3.4"})
+        assert main._peer(req) == "203.0.113.7"
+        req = SimpleNamespace(remote="10.9.9.9", headers={"X-Forwarded-For": "1.2.3.4"})
+        assert main._peer(req) == "1.2.3.4"                             # from the trusted proxy: believed
+        main.session = None
+        main.clients.clear()
+    _app_test(cfg_file, {}, body)
+
+
+def test_public_status_never_shows_feed_urls_or_raw_errors(cfg_file):
+    from anchorless.newsroom import short_error
+
+    assert short_error("HTTPStatusError: Client error '429 Too Many Requests' for url 'https://town.example/rss?secret=1'") == "HTTP 429"
+    assert short_error("ReadTimeout: ") == "timed out"
+    assert short_error("BlockedURL: router.lan is on a private network (192.168.1.1)") == "blocked: private network"
+
+    async def body(client, app):
+        st = app["station"]
+        url = "https://feeds.npr.org/1001/rss.xml"
+        st.newsroom.fetcher.state[url] = type("S", (), {"stories": [], "error": f"HTTPStatusError: Client error '503' for url '{url}'",
+                                                        "ok_at": None})()
+        health = await (await client.get("/health")).json()
+        status = await (await client.get("/api/status")).json()
+        for public in (health, status):
+            text = json.dumps(public)
+            assert "/1001/rss.xml" not in text and "Client error" not in text
+        assert health["feeds"]["failing"] == 1 and health["feeds"]["failing_feeds"][0]["error"] == "HTTP 503"
+        st.cfg.web.public_status = "summary"
+        health = await (await client.get("/health")).json()
+        status = await (await client.get("/api/status")).json()
+        assert "failing_feeds" not in health["feeds"] and status["feeds"] is None and status["feed_count"]["failing"] == 1
+        await client.post("/api/login", json={"password": "secret-password-1"}, headers=W)
+        snap = await (await client.get("/api/settings")).json()
+        assert "Client error '503'" in snap["feed_status"][url]["error"]            # the full detail: settings only
+    _app_test(cfg_file, {"ANCHORLESS__ADMIN__PASSWORD": "secret-password-1"}, body)

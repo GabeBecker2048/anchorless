@@ -33,6 +33,7 @@ from aiohttp import web
 from .. import __version__
 from ..config import SourceConfig
 from ..netguard import BlockedURL, check_url, guard_hooks
+from ..newsroom import short_error
 from ..settings import SettingsError
 from ..sources.rss import USER_AGENT, parse_feed
 from .admin import Admin
@@ -66,10 +67,13 @@ def status(st: Station) -> dict:
                 "when": _iso(c.when),
                 "breaking": c.key in tagged,
             } for c in seg.clusters]})
+    # Public: feeds by name and site, errors as short labels - never a full URL (a local
+    # feed's URL can say where you live) or a raw error message.
     feeds = [{
         "name": f["name"], "host": urlsplit(f["url"]).hostname, "enabled": f["enabled"],
-        "stories": f["stories"], "error": f["error"], "ok_at": f["ok_at"],
+        "stories": f["stories"], "error": short_error(f["error"]), "ok_at": f["ok_at"],
     } for f in room.feed_status()]
+    summary = st.cfg.web.public_status == "summary"
     b = st.cfg.breaking
     return {
         "version": __version__,
@@ -77,12 +81,13 @@ def status(st: Station) -> dict:
         "timezone": st.cfg.channel.timezone,
         "last_refresh": _iso(room.last_refresh),
         "refresh_minutes": st.cfg.rundown.refresh_minutes,
-        "refresh_error": room.last_error,
+        "refresh_error": short_error(room.last_error),
         # Only the channels offered on the web (show_on "both" or "web").
         "channels": [{**ch.status(), "id": ch.info.id, "stream": ch.info.path, "hls": f"/hls/{ch.info.id}.m3u8"}
                      for ch in st.channels.values() if ch.info.on_web],
         "rundown": rundown,
-        "feeds": feeds,
+        "feeds": None if summary else feeds,
+        "feed_count": {"total": len(feeds), "failing": sum(1 for f in feeds if f["error"])},
         "alerts": [{"title": t, "when": _iso(w)} for t, w in room.store.recent_alerts(8)],
         "breaking_rule": {"enabled": b.enabled, "min_sources": b.min_sources, "window_minutes": b.window_minutes,
                           "local_min_sources": b.local_min_sources, "local_alerts": b.local_alerts,
@@ -151,6 +156,9 @@ class SettingsApi:
                                      "pending": ch.pending is not None} for ch in self.st.channels.values()}
         snap["config_error"] = self.st.config_error
         snap["history"] = self.st.history.recent(20)
+        # The full detail, for the settings page only: exact errors, by feed URL.
+        snap["feed_status"] = {f["url"]: {"stories": f["stories"], "error": f["error"], "ok_at": f["ok_at"]}
+                               for f in self.st.newsroom.feed_status()}
         return web.json_response(snap, headers={"Cache-Control": "no-store"})
 
     async def patch(self, request: web.Request) -> web.Response:

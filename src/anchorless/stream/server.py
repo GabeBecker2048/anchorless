@@ -21,15 +21,17 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from aiohttp import web
 
 from .. import __version__, sound
 from ..config import Config
-from ..newsroom import Newsroom
+from ..newsroom import Newsroom, short_error
 from ..render import make_theme
 from ..render.theme import resolve_look
 from ..settings import History, Settings, diff_configs
+from .admin import client_address
 from .encoder import Encoder
 from .guide import ChannelInfo, channel_list, guide, playlist
 from .playout import Playout
@@ -166,15 +168,19 @@ class Channel:
         self.pending: ChannelInfo | None = None
         self.on_stopped: Callable[[Channel], None] | None = None
         # Set by the Station: None, or why this viewer / a new session can't start.
-        self.admit: Callable[[Channel, bool], str | None] | None = None
+        self.admit: Callable[[Channel, str | None], str | None] | None = None
         self.idle_handle: asyncio.TimerHandle | None = None
         self._lock = asyncio.Lock()
         self.stats = {"sessions": 0, "last_start": None, "last_stop": None, "last_stop_reason": None}
 
-    async def _start_or_refuse(self, new_viewer: bool) -> None:
+    def _peer(self, request: web.Request) -> str:
+        return client_address(request, self.cfg.admin.trusted_proxies) or "?"
+
+    async def _start_or_refuse(self, peer: str | None) -> None:
         """Check the limits and start the session in one step (no await between them,
-        so two viewers arriving together can't both slip past a limit)."""
-        reason = self.admit(self, new_viewer) if self.admit else None
+        so two viewers arriving together can't both slip past a limit). ``peer``: the
+        new viewer's address, or None for no new viewer."""
+        reason = self.admit(self, peer) if self.admit else None
         if reason:
             log.info("%s: refused a viewer: %s", self.info.name, reason)
             raise web.HTTPServiceUnavailable(text=reason, headers={"Retry-After": "30"})
@@ -252,9 +258,10 @@ class Channel:
         if self.idle_handle:
             self.idle_handle.cancel()
             self.idle_handle = None
-        await self._start_or_refuse(new_viewer=True)    # 503 if the limits say no
+        peer = self._peer(request)
+        await self._start_or_refuse(peer)               # 503 if the limits say no
         await resp.prepare(request)          # headers out now: players wait on them
-        client = Client(request.remote or "?")
+        client = Client(peer)
         s = self.session
         if s and s.tsbuf:
             # Joining a running session: the head start, then live from the next packet.
@@ -278,16 +285,12 @@ class Channel:
             await resp.write_eof()
         return resp
 
-    @staticmethod
-    def _hls_peer(request: web.Request) -> str:
-        return request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote or "?"
-
     def _hls_is_new(self, request: web.Request) -> bool:
-        peer = self._hls_peer(request)
+        peer = self._peer(request)
         return peer not in self.hls_seen or time.monotonic() - self.hls_seen[peer] > HLS_GONE_SECONDS
 
     def _hls_touch(self, request: web.Request) -> None:
-        peer = self._hls_peer(request)
+        peer = self._peer(request)
         if self._hls_is_new(request):
             log.info("%s: HLS viewer %s", self.info.name, peer)
         self.hls_seen[peer] = time.monotonic()
@@ -297,7 +300,7 @@ class Channel:
     async def hls_playlist(self, request: web.Request) -> web.Response:
         new = self._hls_is_new(request)
         if new or not self.session:
-            reason = self.admit(self, new) if self.admit else None
+            reason = self.admit(self, self._peer(request) if new else None) if self.admit else None
             if reason:
                 log.info("%s: refused an HLS viewer: %s", self.info.name, reason)
                 raise web.HTTPServiceUnavailable(text=reason, headers={"Retry-After": "30"})
@@ -368,9 +371,21 @@ class Station:
     def sessions(self) -> int:
         return sum(1 for c in self.channels.values() if c.session)
 
-    def _admit(self, ch: Channel, new_viewer: bool) -> str | None:
-        """None if this viewer may watch, else why not ([stream] max_viewers / max_sessions)."""
+    def viewers_from(self, peer: str) -> int:
+        cutoff = time.monotonic() - HLS_GONE_SECONDS
+        return sum(sum(1 for c in ch.clients if c.peer == peer)
+                   + (1 if ch.hls_seen.get(peer, 0) >= cutoff else 0) for ch in self.channels.values())
+
+    def _admit(self, ch: Channel, peer: str | None) -> str | None:
+        """None if this viewer may watch, else why not ([stream] limits). ``peer`` is
+        the new viewer's address, or None when no viewer is being added."""
         s = self.cfg.stream
+        new_viewer = peer is not None
+        if new_viewer and s.max_viewers_per_client >= 0 and self.viewers_from(peer) >= s.max_viewers_per_client:
+            if s.max_viewers_per_client == 0:
+                return "nobody can watch right now ([stream] max_viewers_per_client = 0)"
+            return (f"busy: {s.max_viewers_per_client} viewer(s) from your address already - the most "
+                    "allowed per address ([stream] max_viewers_per_client)")
         if new_viewer and s.max_viewers >= 0 and self.viewers() >= s.max_viewers:
             if s.max_viewers == 0:
                 return "nobody can watch right now ([stream] max_viewers = 0)"
@@ -485,16 +500,27 @@ class Station:
         return web.Response(text=guide(self.cfg, datetime.now(UTC)), content_type="application/xml")
 
     async def health(self, request: web.Request) -> web.Response:
+        """Public. Feeds by name and site with short error labels - never URLs or raw
+        errors (those are on the settings page). [web] public_status = "summary": counts only."""
         room = self.newsroom
         rd = room.rundown
-        return web.json_response({
+        feeds = room.feed_status()
+        failing = [f for f in feeds if f["error"]]
+        out = {
             "version": __version__,
             "last_refresh": room.last_refresh.isoformat() if room.last_refresh else None,
-            "refresh_error": room.last_error,
+            "refresh_error": short_error(room.last_error),
             "stories": len(rd.clusters) if rd else 0,
-            "feeds_failing": [f["name"] + " " + f["url"] for f in room.feed_status() if f["error"]],
-            "channels": [ch.status() for ch in self.channels.values()],
-        })
+            "feeds": {"total": len(feeds), "failing": len(failing)},
+        }
+        if self.cfg.web.public_status == "summary":
+            out["channels"] = [{"number": c.info.number, "name": c.info.name, "running": bool(c.session),
+                                "viewers": len(c.clients) + c.hls_viewers()} for c in self.channels.values()]
+        else:
+            out["feeds"]["failing_feeds"] = [{"name": f["name"], "host": urlsplit(f["url"]).hostname,
+                                              "error": short_error(f["error"])} for f in failing]
+            out["channels"] = [ch.status() for ch in self.channels.values()]
+        return web.json_response(out)
 
 
 def make_app(cfg: Config, config_path: Path | None = None) -> web.Application:

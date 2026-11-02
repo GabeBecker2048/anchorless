@@ -55,6 +55,18 @@ def _in(ip: str, nets: list[str]) -> bool:
     return any(addr in ipaddress.ip_network(n, strict=False) for n in nets)
 
 
+def client_address(request: web.Request, trusted_proxies: list[str]) -> str:
+    """The real client: X-Forwarded-For is believed only from a trusted proxy
+    ([admin] trusted_proxies). Used for the settings login and for counting viewers."""
+    ip = request.remote or ""
+    if trusted_proxies and _in(ip, trusted_proxies):
+        hops = [h.strip() for h in request.headers.get("X-Forwarded-For", "").split(",") if h.strip()]
+        for hop in reversed(hops):          # the nearest hop that is not one of our proxies
+            if not _in(hop, trusted_proxies):
+                return hop
+    return ip
+
+
 class Admin:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
@@ -66,15 +78,7 @@ class Admin:
         return bool(self.cfg.admin.password or self.cfg.admin.password_hash)
 
     def client_ip(self, request: web.Request) -> str:
-        """The real client: X-Forwarded-For is believed only from a trusted proxy."""
-        ip = request.remote or ""
-        trusted = self.cfg.admin.trusted_proxies
-        if trusted and _in(ip, trusted):
-            hops = [h.strip() for h in request.headers.get("X-Forwarded-For", "").split(",") if h.strip()]
-            for hop in reversed(hops):          # the nearest hop that is not one of our proxies
-                if not _in(hop, trusted):
-                    return hop
-        return ip
+        return client_address(request, self.cfg.admin.trusted_proxies)
 
     def is_https(self, request: web.Request) -> bool:
         if request.secure:

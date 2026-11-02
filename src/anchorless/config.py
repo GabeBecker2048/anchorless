@@ -161,6 +161,10 @@ class StreamConfig(_Model):
     max_sessions: int = Field(2, ge=-1)
     # Viewers at once, all channels together (TV, web page, iPhone). -1 = no limit; 0 = nobody.
     max_viewers: int = Field(-1, ge=-1)
+    # Viewers at once from one address, so one client can't take every slot. -1 = no
+    # limit. A household behind one router is one address, and so is a TV server such
+    # as Jellyfin (all its viewers come from it) - leave this at -1 if you use one.
+    max_viewers_per_client: int = Field(-1, ge=-1)
 
 
 class SegmentConfig(_Model):
@@ -307,6 +311,10 @@ class WebConfig(_Model):
     # true: the viewer page only over https (a TLS connection, or a trusted proxy's
     # X-Forwarded-Proto). Suggested whenever you have https - for the settings page too.
     require_https: bool = False
+    # What /health and the viewer page show anyone: "full" (the rundown, alerts and
+    # each feed by name and site, with short error labels) or "summary" (counts only,
+    # no feed list). Full feed URLs and error details are only ever on the settings page.
+    public_status: Literal["full", "summary"] = "full"
 
 
 class FeedsConfig(_Model):
@@ -362,7 +370,8 @@ class AdminConfig(_Model):
         return self.password_hash or self.password or ""
     # Who may open the settings page at all (CIDR ranges). Default: this machine and private networks.
     allow_from: list[str] = Field(default_factory=_private_ranges)
-    # Reverse proxies whose X-Forwarded-For is believed (e.g. Caddy). Empty: none.
+    # Reverse proxies whose X-Forwarded-For is believed (e.g. Caddy), for the settings
+    # login and for counting viewers by address. Empty: none.
     trusted_proxies: list[str] = Field(default_factory=list)
     session_days: float = Field(30, gt=0, le=365)
     # Only log in over https (from a trusted proxy's X-Forwarded-Proto, or a TLS
