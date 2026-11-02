@@ -216,3 +216,71 @@ async def _one_watch_round(st):
     while st.config_version == v:
         await asyncio.sleep(0.2)
     await asyncio.sleep(0.3)
+
+
+# --- feeds stay on the public internet (SSRF) ---
+
+def test_feed_urls_on_private_networks_are_refused():
+    from anchorless.netguard import BlockedURL, check_url
+
+    async def run():
+        for url in ("http://192.168.1.1/", "http://10.0.0.5/rss", "http://127.0.0.1:9798/", "http://localhost/",
+                    "http://100.101.102.103/", "http://169.254.169.254/latest/meta-data/", "http://[::1]/",
+                    "http://[::ffff:192.168.1.1]/", "file:///etc/passwd", "gopher://x/"):
+            with pytest.raises(BlockedURL):
+                await check_url(url)
+        await check_url("http://8.8.8.8/rss")                          # a public address
+        await check_url("http://192.168.1.50/rss", allow_private=True)  # allowed when the file says so
+    asyncio.run(run())
+
+
+def test_a_redirect_into_the_lan_is_refused():
+    import httpx
+
+    from anchorless.netguard import BlockedURL, guard_hooks
+
+    def handler(request):
+        if request.url.host == "8.8.8.8":
+            return httpx.Response(302, headers={"Location": "http://192.168.1.1/admin"})
+        return httpx.Response(200, text="router admin")
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True,
+                                     event_hooks=guard_hooks(False)) as client:
+            with pytest.raises(BlockedURL, match="private network"):
+                await client.get("http://8.8.8.8/feed.xml")
+    asyncio.run(run())
+
+
+def test_the_settings_api_refuses_a_lan_feed(cfg_file):
+    async def body(client, app):
+        await client.post("/api/login", json={"password": "secret"}, headers=W)
+        r = await client.patch("/api/settings", headers=W, json={"ops": [
+            {"op": "feed_add", "origin": "config", "value": {"name": "Router", "url": "http://192.168.1.1/"}}]})
+        assert r.status == 400 and "private network" in (await r.json())["error"]
+        r = await client.post("/api/feeds/check", headers=W, json={"url": "http://127.0.0.1:9798/health"})
+        assert not (await r.json())["ok"]
+        assert "192.168.1.1" not in cfg_file.read_text()
+    _app_test(cfg_file, {"ANCHORLESS__ADMIN__PASSWORD": "secret"}, body)
+
+
+# --- https only ---
+
+def test_login_needs_https_except_from_this_machine(cfg_file):
+    cfg_file.write_text(cfg_file.read_text() + '\n[admin]\ntrusted_proxies = ["127.0.0.1"]\n')
+
+    async def body(client, app):
+        lan = {**W, "X-Forwarded-For": "192.168.1.50"}       # through the (trusted) proxy, from the LAN
+        r = await client.post("/api/login", json={"password": "secret"}, headers={**lan, "X-Forwarded-Proto": "http"})
+        assert r.status == 403 and (await r.json())["error"] == "https required"
+        r = await client.post("/api/login", json={"password": "secret"}, headers={**lan, "X-Forwarded-Proto": "https"})
+        assert r.status == 200 and "secure" in r.headers["Set-Cookie"].lower()
+        # (A Secure cookie is only sent over https; this test client is plain http, so pass it on.)
+        jar = {k: v.value for k, v in r.cookies.items()}
+        ok = await client.get("/api/settings", headers={**lan, "X-Forwarded-Proto": "https"}, cookies=jar)
+        assert ok.status == 200
+        plain = await client.get("/api/settings", headers={**lan, "X-Forwarded-Proto": "http"}, cookies=jar)
+        assert plain.status == 403
+        client.session.cookie_jar.clear()
+        assert (await client.post("/api/login", json={"password": "secret"}, headers=W)).status == 200   # localhost
+    _app_test(cfg_file, {"ANCHORLESS__ADMIN__PASSWORD": "secret"}, body)

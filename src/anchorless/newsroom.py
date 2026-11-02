@@ -41,7 +41,7 @@ class Newsroom:
     async def refresh(self, now: datetime | None = None) -> Rundown:
         now = now or datetime.now(UTC)
         cold_start = self.store.is_empty()
-        stories = await self.fetcher.fetch_all(self.cfg.source)
+        stories = await self.fetcher.fetch_all(self.cfg.source, self.cfg.feeds.allow_private)
         self.store.mark_seen(stories, now)
         self.store.prune(now)
         clusters = all_clusters(stories, self.cfg, now)

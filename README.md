@@ -99,8 +99,14 @@ changed since your page loaded it is reported as a conflict instead.
 It is **off until a password is set**: `ANCHORLESS__ADMIN__PASSWORD` in the
 environment. It is on the same port as everything else; only `/settings` and
 its API need the login (the TV tuner, guide and viewer page stay open). By
-default it only answers private networks (`[admin] allow_from`). Paths, the
-video encoder and the server settings stay file-only.
+default it only answers private networks (`[admin] allow_from`) and only over
+https (`[admin] require_https`: put it behind a reverse proxy with TLS, or use
+it from the server itself). Paths, the video encoder and the server settings
+stay file-only.
+
+Feeds are fetched by the server, so every feed request - redirects included -
+must go to a public address: a URL can't point it at your router or other
+services on your network (`[feeds] allow_private = true` allows it).
 
 ## Configuration
 

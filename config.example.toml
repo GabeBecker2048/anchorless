@@ -133,6 +133,9 @@ dir = "data"                  # SQLite memory of stories already seen
 [feeds]
 builtin = true                # false: only your [[source]] entries
 disabled = []                 # feed URLs to skip, e.g. ["https://feeds.npr.org/1001/rss.xml"]
+allow_private = false         # true: allow feeds on your own network. Off, every feed request
+                              # (redirects too) must go to a public address - so a URL typed
+                              # into the settings page can't point the server at your router etc.
 
 # [[source]]
 # name = "Reuters"
@@ -148,3 +151,5 @@ allow_from = ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.
               "100.64.0.0/10", "fc00::/7", "fe80::/10"]   # who may open the settings page
 trusted_proxies = []          # e.g. ["192.168.1.2"]: your reverse proxy, so X-Forwarded-For is believed
 session_days = 30             # how long a login lasts
+require_https = true          # log in only over https (TLS, or a trusted proxy's X-Forwarded-Proto);
+                              # localhost is always allowed. false only on a network you trust.

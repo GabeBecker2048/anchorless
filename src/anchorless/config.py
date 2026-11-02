@@ -301,6 +301,9 @@ class FeedsConfig(_Model):
     builtin: bool = True
     # Feed URLs to skip (any feed: built-in, [[source]] or local).
     disabled: list[str] = Field(default_factory=list)
+    # true: allow feeds on private networks (your LAN, the tailnet). Off, every feed
+    # request - redirects too - must go to a public address (see netguard.py).
+    allow_private: bool = False
 
 
 def _private_ranges() -> list[str]:
@@ -318,6 +321,10 @@ class AdminConfig(_Model):
     # Reverse proxies whose X-Forwarded-For is believed (e.g. Caddy). Empty: none.
     trusted_proxies: list[str] = Field(default_factory=list)
     session_days: float = Field(30, gt=0, le=365)
+    # Only log in over https (from a trusted proxy's X-Forwarded-Proto, or a TLS
+    # connection) - plain http would send the password unencrypted. This machine
+    # itself (localhost) is always allowed.
+    require_https: bool = True
 
     @field_validator("allow_from", "trusted_proxies")
     @classmethod

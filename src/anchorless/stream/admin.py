@@ -13,7 +13,10 @@ open. The settings page and its API need, in order:
    restart and changing the password logs everyone out. Five wrong passwords a
    minute from one address and it waits;
 4. for changes, a custom header (X-Anchorless: 1) that a form on another site
-   cannot send, and an Origin header, when present, from this same host.
+   cannot send, and an Origin header, when present, from this same host;
+5. https ([admin] require_https, on by default): plain http would carry the
+   password and the session unencrypted. "https" means a TLS connection, or a
+   trusted proxy saying X-Forwarded-Proto: https. Localhost is exempt.
 """
 
 from __future__ import annotations
@@ -70,6 +73,20 @@ class Admin:
                     return hop
         return ip
 
+    def is_https(self, request: web.Request) -> bool:
+        if request.secure:
+            return True
+        trusted = self.cfg.admin.trusted_proxies
+        return bool(trusted) and _in(request.remote or "", trusted) and \
+            request.headers.get("X-Forwarded-Proto", "").lower() == "https"
+
+    def _require_https(self, request: web.Request) -> None:
+        if not self.cfg.admin.require_https or self.is_https(request):
+            return
+        if _in(self.client_ip(request), ["127.0.0.0/8", "::1/128"]):
+            return
+        raise web.HTTPForbidden(text='{"error": "https required"}', content_type="application/json")
+
     def _key(self) -> bytes:
         if self._secret is None:
             path = Path(self.cfg.data.dir) / "admin.key"
@@ -100,6 +117,7 @@ class Admin:
             raise web.HTTPNotFound(text='{"error": "disabled"}', content_type="application/json")
         if not _in(self.client_ip(request), self.cfg.admin.allow_from):
             raise web.HTTPForbidden(text='{"error": "not from an allowed network"}', content_type="application/json")
+        self._require_https(request)
         if not self.logged_in(request):
             raise web.HTTPUnauthorized(text='{"error": "login"}', content_type="application/json")
         if write:
@@ -122,6 +140,7 @@ class Admin:
         ip = self.client_ip(request)
         if not _in(ip, self.cfg.admin.allow_from):
             raise web.HTTPForbidden(text='{"error": "not from an allowed network"}', content_type="application/json")
+        self._require_https(request)
         self.check_write(request)
         fails = self._fails[ip]
         while fails and fails[0] < time.monotonic() - 60:
@@ -141,7 +160,7 @@ class Admin:
         days = self.cfg.admin.session_days
         expires = int(time.time() + days * 86400)
         resp = web.json_response({"ok": True})
-        secure = request.headers.get("X-Forwarded-Proto") == "https" or request.secure
+        secure = self.is_https(request)
         resp.set_cookie(COOKIE, self._token(expires), max_age=int(days * 86400), httponly=True,
                         samesite="Strict", secure=secure, path="/")
         log.info("settings: login from %s", ip)
