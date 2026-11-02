@@ -198,6 +198,12 @@ class RundownConfig(_Model):
     # ...or whose headlines and summaries score at least this (TF-IDF cosine).
     same_story_text_similarity: float = Field(0.32, gt=0, le=1)
     segment: list[SegmentConfig] = Field(default_factory=_default_segments)
+    # Which outlet's headline a story shared by several outlets shows: "first" (the
+    # first published), "consensus" (the wording the other outlets corroborate - see
+    # headline.py), or "log" (show "first", log what "consensus" would show instead).
+    headline_choice: Literal["first", "consensus", "log"] = "log"
+    # How much better (0-1 score) a version must be to replace the shown one.
+    headline_margin: float = Field(0.15, ge=0, le=1)
 
 
 class BreakingConfig(_Model):

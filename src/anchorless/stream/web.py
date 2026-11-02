@@ -156,6 +156,7 @@ class SettingsApi:
                                      "pending": ch.pending is not None} for ch in self.st.channels.values()}
         snap["config_error"] = self.st.config_error
         snap["history"] = self.st.history.recent(20)
+        snap["headline_log"] = self.st.newsroom.headline_log[:30]
         # The full detail, for the settings page only: exact errors, by feed URL.
         snap["feed_status"] = {f["url"]: {"stories": f["stories"], "error": f["error"], "ok_at": f["ok_at"]}
                                for f in self.st.newsroom.feed_status()}

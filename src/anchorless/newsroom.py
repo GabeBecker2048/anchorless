@@ -9,6 +9,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from . import headline
 from .breaking import pick_breaking
 from .config import Config
 from .models import Cluster, Rundown
@@ -57,6 +58,11 @@ class Newsroom:
         self.last_error: str | None = None
         self.changed = asyncio.Event()
         self._wake = asyncio.Event()
+        # Story (cluster key) -> the version shown last refresh, so a headline sticks.
+        self.headlines: dict[str, str] = {}
+        # The latest headline decisions that differ from the default, newest first.
+        self.headline_log: list[dict] = []
+        self._logged: set[tuple[str, str]] = set()
 
     async def refresh(self, now: datetime | None = None) -> Rundown:
         now = now or datetime.now(UTC)
@@ -65,6 +71,7 @@ class Newsroom:
         self.store.mark_seen(stories, now)
         self.store.prune(now)
         clusters = all_clusters(stories, self.cfg, now)
+        self._choose_headlines(clusters, now)
         rundown = build_rundown(clusters, self.cfg, now)
 
         # On the very first run every undated story looks brand new: no alerts then.
@@ -86,6 +93,32 @@ class Newsroom:
         self.changed.set()
         self.changed.clear()
         return rundown
+
+    def _choose_headlines(self, clusters: list[Cluster], now: datetime) -> None:
+        mode = self.cfg.rundown.headline_choice
+        if mode == "first":
+            self.headlines = {}
+            return
+        shown: dict[str, str] = {}
+        for c in clusters:
+            choice = headline.choose(c, self.cfg.rundown.headline_margin, self.headlines.get(c.key))
+            if choice is None:
+                continue
+            if mode == "consensus":
+                headline.apply(c, choice.chosen)
+                shown[c.key] = choice.chosen.key
+            if choice.changed and (c.key, choice.chosen.key) not in self._logged:
+                self._logged.add((c.key, choice.chosen.key))
+                verb = "showing" if mode == "consensus" else "would show"
+                log.info("headline (%s): %s %r (%s) instead of %r (%s): %s", mode, verb, choice.chosen.title,
+                         choice.chosen.outlet, choice.default.title, choice.default.outlet, choice.reason)
+                self.headline_log.insert(0, {
+                    "when": now.isoformat(timespec="seconds"), "mode": mode,
+                    "shown": {"title": choice.chosen.title, "outlet": choice.chosen.outlet},
+                    "instead_of": {"title": choice.default.title, "outlet": choice.default.outlet},
+                    "why": choice.reason})
+                del self.headline_log[50:]
+        self.headlines = shown
 
     def add_breaking_tag(self, cluster: Cluster, now: datetime) -> None:
         until = now + timedelta(minutes=self.cfg.breaking.crawl_tag_minutes)

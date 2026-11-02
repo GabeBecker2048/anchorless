@@ -55,6 +55,11 @@ SECTIONS: list[tuple[str, str, list[tuple[str, str, str, str]]]] = [
         ("rundown.transition_seconds", "Crossfade seconds", "Between pages. 0 = cut.", "live"),
         ("rundown.refresh_minutes", "Fetch news every (minutes)", "How often all feeds are checked.", "live"),
         ("rundown.max_story_age_hours", "Oldest story (hours)", "Stories older than this are dropped.", "live"),
+        ("rundown.headline_choice", "Headline when outlets differ", "\"consensus\": when the first-published "
+         "version has a red flag (loaded words, shouting, wording no other outlet shares), show a clean version the "
+         "others agree with. \"log\": keep the first, list what consensus would change (below). \"first\": off.", "live"),
+        ("rundown.headline_margin", "Consensus margin", "How much better (0-1) a version must score to replace the "
+         "shown one. Higher = fewer changes.", "live"),
     ]),
     ("breaking", "Breaking news", [
         ("breaking.enabled", "Breaking-news alerts", "Interrupt the rundown for big stories.", "live"),
