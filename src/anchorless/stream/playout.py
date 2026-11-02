@@ -19,6 +19,7 @@ from ..models import Cluster, Rundown
 from ..render import make_theme
 from ..render.crawl import Crawl
 from ..render.theme import PALETTE as P
+from .encoder import frame_format
 
 
 class NewsFeed(Protocol):
@@ -103,6 +104,7 @@ class Playout:
         self.on_air: str = ""          # what is showing, for /health and logs
         self._just_broke: set[str] = set()
         self._alert_seen = 0
+        self.raw_mode = frame_format(cfg)      # "RGB", or "BGRX" for GPU colour conversion
 
     def seconds(self, s: float) -> int:
         return max(1, round(s * self.fps))
@@ -204,5 +206,5 @@ class Playout:
         return out
 
     def next_frame(self) -> bytes:
-        """The next frame as raw rgb24."""
-        return self.next_image().tobytes()
+        """The next frame as raw bytes, in the layout the encoder expects."""
+        return self.next_image().tobytes("raw", self.raw_mode)

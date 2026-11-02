@@ -66,6 +66,9 @@ class VideoConfig(_Model):
     # "vbr" uses bitrate/maxrate. Older Intel drivers (i965) only do "cqp" (constant quality).
     vaapi_rc: Literal["vbr", "cqp"] = "vbr"
     vaapi_qp: int = Field(24, ge=1, le=51)
+    # Where RGB becomes the encoder's YUV: "cpu" (works everywhere) or "gpu"
+    # (scale_vaapi; saves most of ffmpeg's CPU, needs a driver with video processing).
+    vaapi_convert: Literal["cpu", "gpu"] = "cpu"
     bitrate: str = "1500k"
     maxrate: str = "2000k"
     gop_seconds: float = Field(2.0, gt=0, le=10)
