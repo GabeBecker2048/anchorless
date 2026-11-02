@@ -303,7 +303,8 @@ function render() {
     $("bigplay").hidden = true;
     return;
   }
-  document.documentElement.dataset.look = channel().theme;    // the page follows the channel's look
+  const ch0 = channel();       // the page takes the channel's look (auto Classic: light by day, dark at night)
+  document.documentElement.dataset.look = ch0.look || ch0.theme;
   const sel = $("channel");
   if (status.channels.length > 1) {
     sel.hidden = false;

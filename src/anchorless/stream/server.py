@@ -28,6 +28,7 @@ from .. import __version__, sound
 from ..config import Config
 from ..newsroom import Newsroom
 from ..render import make_theme
+from ..render.theme import resolve_look
 from ..settings import Settings
 from .encoder import Encoder
 from .guide import ChannelInfo, channel_list, guide, playlist
@@ -304,6 +305,7 @@ class Channel:
         return {
             "name": self.info.name, "number": self.info.number, "theme": self.info.theme,
             "show_on": self.info.show_on,
+            "look": resolve_look(self.info.theme, datetime.now(UTC), self.cfg.tz),
             "settings_pending": self.pending is not None,
             "running": bool(s),
             "viewers": len(self.clients) + hls,

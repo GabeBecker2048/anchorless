@@ -325,3 +325,21 @@ def test_classic_dark_is_classic_in_darker_colours(stories, cfg):
     assert mean(dark) < mean(light)                                     # darker overall
     assert make_theme(cfg, "classic-dark").kind == "classic"            # same sting as Classic
     assert Config(channel={**CHANNEL, "theme": "classic-dark"}).channel.theme == "classic-dark"
+
+
+def test_auto_classic_is_light_by_day_and_dark_at_night(stories, cfg):
+    from zoneinfo import ZoneInfo
+
+    from anchorless.render import make_theme
+    from anchorless.render.theme import resolve_look
+
+    tz = ZoneInfo(cfg.channel.timezone)
+    noon, night = datetime(2026, 6, 12, 12, tzinfo=tz), datetime(2026, 6, 12, 22, tzinfo=tz)
+    clusters = all_clusters(stories, cfg, NOW)
+    auto, light, dark = (make_theme(cfg, t) for t in ("classic", "classic-light", "classic-dark"))
+    page = lambda t, now: t.story_page(clusters[0], "TOP", 1, 2, now).tobytes()  # noqa: E731
+    assert page(auto, noon) == page(light, noon) and page(auto, night) == page(dark, night)
+    assert auto.clock_key(noon) != auto.clock_key(noon.replace(hour=22))
+    assert auto.w == light.w and auto.crawl_rect == light.crawl_rect
+    assert (resolve_look("classic", noon, tz), resolve_look("classic", night, tz)) == ("classic-light", "classic-dark")
+    assert resolve_look("classic-dark", noon, tz) == "classic-dark"

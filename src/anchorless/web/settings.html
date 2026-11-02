@@ -208,7 +208,7 @@ $("logout").addEventListener("click", async () => { await api("POST", "/api/logo
 
 // ---------- rendering ----------
 function render() {
-  document.documentElement.dataset.look = cur.channels[0]?.theme || "studio";
+  document.documentElement.dataset.look = lookOf(cur.channels[0]);
   $("where").replaceChildren("Saved to ", el("code", {}, cur.config_path),
     ...(cur.local_path ? [" (local feeds: ", el("code", {}, cur.local_path), ")"] : []),
     ". You can still edit the file by hand: changes there show up here within a few seconds.");
@@ -287,11 +287,16 @@ function renderSections() {
 }
 
 // ---------- channels ----------
-const LOOKS = { "studio": "Studio", "classic": "Classic", "classic-dark": "Classic dark" };
+const LOOKS = { "studio": "Studio", "classic": "Classic (auto)", "classic-light": "Classic light", "classic-dark": "Classic dark" };
+// The look a theme has now: auto Classic is light by day and dark at night (the server says which).
+function lookOf(ch) { return ch?.theme === "classic" ? cur.classic_now : (ch?.theme || "studio"); }
 function renderLookNote() {
   const main = cur.channels[0];
-  $("look-note").replaceChildren("These web pages take the ", el("b", {}, "main channel's"), " look - now ",
-    el("b", {}, LOOKS[main.theme] || main.theme), " (", main.name, "). Change the main channel's theme below to change it; the viewer page follows whichever channel you watch.");
+  const auto = main.theme === "classic"
+    ? [" - light from 6:00 to 19:00, dark at night; it is ", el("b", {}, lookOf(main) === "classic-dark" ? "dark" : "light"), " now"] : [];
+  $("look-note").replaceChildren("These web pages take the ", el("b", {}, "main channel's"), " look: ",
+    el("b", {}, LOOKS[main.theme] || main.theme), " (", main.name, ")", ...auto,
+    ". Change the main channel's theme below to change it; the viewer page follows whichever channel you watch.");
 }
 function liveOf(id) { return orig.live[id] || { viewers: 0, running: false, pending: false }; }
 
@@ -319,7 +324,7 @@ function renderChannels() {
       }
       updateSaveBar();
     };
-    theme.addEventListener("change", () => { ch.theme = theme.value; if (ch.main) { document.documentElement.dataset.look = ch.theme; renderLookNote(); } markAll(); });
+    theme.addEventListener("change", () => { ch.theme = theme.value; if (ch.main) { document.documentElement.dataset.look = lookOf(ch); renderLookNote(); } markAll(); });
     name.addEventListener("input", () => { ch.name = name.value; markAll(); });
     show.addEventListener("change", () => { ch.show_on = show.value; num.disabled = show.value === "web" || dis("channel_number");
                                             if (show.value !== "web" && !num.value && o?.channel_number) num.value = ch.channel_number = o.channel_number; markAll(); });
