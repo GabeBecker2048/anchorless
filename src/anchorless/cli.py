@@ -66,13 +66,13 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("render", help="write PNG stills of each page type")
     p.add_argument("-o", "--out", default="out", help="output directory (default: out)")
-    p.add_argument("-t", "--theme", choices=["studio", "classic"], help="default: the configured theme")
+    p.add_argument("-t", "--theme", choices=["studio", "classic", "classic-dark"], help="default: the configured theme")
 
     p = sub.add_parser("preview", help="write a short MP4 of the channel")
     p.add_argument("-o", "--out", default="out/preview.mp4")
     p.add_argument("-s", "--seconds", type=float, default=60)
     p.add_argument("--breaking", action="store_true", help="start with a (sample) breaking-news alert")
-    p.add_argument("-t", "--theme", choices=["studio", "classic"], help="default: the configured theme")
+    p.add_argument("-t", "--theme", choices=["studio", "classic", "classic-dark"], help="default: the configured theme")
 
     sub.add_parser("serve", help="run the channel: /playlist.m3u, /guide.xml, /live.ts, /health")
     sub.add_parser("check-config", help="validate the config and print it")

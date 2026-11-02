@@ -9,7 +9,7 @@
 # (like your location) so this file can be shared.
 
 [channel]
-theme = "studio"              # required: "studio" (pixel-art news set) or "classic" (cable-news pages)
+theme = "studio"              # required: "studio" (pixel-art news set), "classic" (cable-news pages) or "classic-dark"
 name = "NEWS"                 # shown in the logo and in your TV guide (default "NEWS")
 show_on = "both"              # required: "both" (TV + web page), "tv" (TV only) or "web" (web page only)
 channel_number = 101          # required for "both" and "tv" (e.g. 2, 101, 2.1); ignored for "web"

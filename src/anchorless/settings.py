@@ -277,7 +277,7 @@ class Settings:
             "segments": [s.model_dump(exclude_defaults=True) | {"name": s.name} for s in cfg.rundown.segment],
             "feeds": self._feeds(cfg, doc, files),
             "file_only": self._file_only(cfg),
-            "themes": ["studio", "classic"],
+            "themes": ["studio", "classic", "classic-dark"],
             "scopes": ["local", "national", "world"],
         }
 

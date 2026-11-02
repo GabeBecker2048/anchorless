@@ -312,3 +312,16 @@ def test_hls_segments_start_at_keyframes_and_are_timed_from_pts():
     assert "#EXT-X-MEDIA-SEQUENCE:1" in playlist and "/hls/x/3.ts" in playlist and "/hls/x/4.ts" not in playlist
     seg = buf.hls_segment(2)
     assert seg[:2 * TS] == pkt(0) + pkt(0x1000) and buf.hls_segment(4) is None
+
+
+def test_classic_dark_is_classic_in_darker_colours(stories, cfg):
+    from anchorless.render import make_theme
+
+    clusters = all_clusters(stories, cfg, NOW)
+    light = make_theme(cfg, "classic").story_page(clusters[0], "TOP", 1, 2, NOW)
+    dark = make_theme(cfg, "classic-dark").story_page(clusters[0], "TOP", 1, 2, NOW)
+    assert light.size == dark.size and light.tobytes() != dark.tobytes()
+    mean = lambda img: sum(img.convert("L").getdata()) / (img.width * img.height)  # noqa: E731
+    assert mean(dark) < mean(light)                                     # darker overall
+    assert make_theme(cfg, "classic-dark").kind == "classic"            # same sting as Classic
+    assert Config(channel={**CHANNEL, "theme": "classic-dark"}).channel.theme == "classic-dark"

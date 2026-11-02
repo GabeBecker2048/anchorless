@@ -41,9 +41,18 @@ class Palette:
     soft: Color = (216, 228, 250)
     muted: Color = (150, 174, 218)
     navy: Color = (8, 22, 58)
+    dot: Color = (70, 104, 170)            # the story-progress dots not lit
 
 
 PALETTE = Palette()
+
+# Classic dark: the same pages in charcoal and near-black instead of blue.
+DARK_PALETTE = Palette(
+    header_top=(30, 31, 37), header_bottom=(14, 14, 18),
+    body_top=(34, 36, 44), body_bottom=(10, 10, 14),
+    crawl_bg=(5, 5, 7), white=(242, 242, 246), soft=(198, 202, 214),
+    muted=(140, 146, 162), navy=(14, 14, 18), dot=(74, 76, 90),
+)
 
 
 def gradient(size: tuple[int, int], top: Color, bottom: Color) -> Image.Image:

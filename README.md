@@ -62,7 +62,11 @@ every viewer gets Anchorless's own head start.
 ## Themes and channels
 
 - `studio`: the empty pixel-art news set.
-- `classic`: full-screen cable-news pages.
+- `classic`: full-screen cable-news pages in blue.
+- `classic-dark`: the same pages in charcoal and near-black.
+
+The web pages take the look of the channel you watch (the settings page: the
+main channel's).
 
 Every channel, `[channel]` and any number of `[[extra_channel]]`s, has the
 same settings:
