@@ -331,6 +331,9 @@ class StudioTheme:
         cx = lw // 2
 
         # The empty chair: a rounded office-chair back, then the armrests in front of it.
+        # Centred on the middle of the desk's top (which sits right of the front face,
+        # because depth runs up and to the right), not on the screen.
+        cx = cx + 5
         back = [cx - 17, 132, cx + 17, 176]
         d.rounded_rectangle([back[0] + 5, back[1] - 3, back[2] + 5, back[3] - 3], radius=9,
                             fill=CHAIR_DARK, outline=INK)                              # its thickness
@@ -344,6 +347,7 @@ class StudioTheme:
             _box(d, ax + 4, 161, ax + 5, 176, (70, 70, 90))
             iso_box(d, ax, 157, 10, 4, 4, CHAIR_HI, CHAIR_DARK, CHAIR_TOP)             # pad
 
+        cx = lw // 2
         # The desk.
         dx0, dx1, dtop, dbot, depth = self.DESK
         iso_box(d, dx0, dtop, dx1 - dx0, dbot - dtop, depth, DESK_FRONT, DESK_SIDE, DESK_TOP)
