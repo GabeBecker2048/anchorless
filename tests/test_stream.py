@@ -275,3 +275,36 @@ def test_web_page_status_and_poster(cfg, stories):
             assert (await client.get("/poster/nope.png")).status == 404
 
     asyncio.run(run())
+
+
+def test_hls_segments_start_at_keyframes_and_are_timed_from_pts():
+    from anchorless.stream.tsbuffer import TS, TsBuffer
+
+    def pkt(pid, key=False, pts=None):
+        p = bytearray(b"\xff" * TS)
+        p[0], p[1], p[2] = 0x47, (0x40 if pts is not None else 0) | (pid >> 8), pid & 0xFF
+        if key:
+            p[3], p[4], p[5] = 0x30, 1, 0x40          # adaptation field with random access
+            off = 6
+        else:
+            p[3] = 0x10
+            off = 4
+        if pts is not None:
+            p[off:off + 9] = b"\x00\x00\x01\xe0\x00\x00\x80\x80\x05"
+            p[off + 9:off + 14] = bytes([0x21 | ((pts >> 29) & 0x0E), (pts >> 22) & 0xFF,
+                                         ((pts >> 14) & 0xFE) | 1, (pts >> 7) & 0xFF, ((pts << 1) & 0xFE) | 1])
+        return bytes(p)
+
+    buf = TsBuffer(lead_seconds=10, gop_seconds=2)
+    stream = pkt(0) + pkt(0x1000)                      # PAT, PMT before the first keyframe
+    for i in range(4):
+        stream += pkt(0x100, key=True, pts=90000 + i * 180000) + pkt(0x100) + pkt(0x101)
+    buf.record(stream, now=0.0)
+    done = buf.finished()
+    assert [s.seq for s in done] == [1, 2, 3]          # the 4th is still growing
+    assert all(s.duration == 2.0 for s in done)
+    assert len(done[0].data) == 5 * TS                  # PAT + PMT stayed with the first keyframe
+    playlist = buf.hls_playlist("/hls/x/{seq}.ts")
+    assert "#EXT-X-MEDIA-SEQUENCE:1" in playlist and "/hls/x/3.ts" in playlist and "/hls/x/4.ts" not in playlist
+    seg = buf.hls_segment(2)
+    assert seg[:2 * TS] == pkt(0) + pkt(0x1000) and buf.hls_segment(4) is None

@@ -3,6 +3,7 @@
   /playlist.m3u   M3U with the one channel
   /guide.xml      XMLTV guide
   /live.ts        the stream (MPEG-TS); encoding runs only while someone watches
+  /hls/<id>.m3u8  the same stream as HLS (for iPhones), cut from memory at keyframes
   /health         JSON status
   /               a page to watch the channels and see the station's status (web.py)
 
@@ -35,6 +36,10 @@ log = logging.getLogger(__name__)
 
 # A viewer this far behind (bytes queued) is dropped rather than slowing everyone.
 MAX_CLIENT_BACKLOG = 16 * 1024 * 1024
+# An HLS viewer polls the playlist every couple of seconds; one silent this long has left.
+HLS_GONE_SECONDS = 15
+# A new HLS viewer gets the playlist once this many segments are ready (~6 s).
+HLS_START_SEGMENTS = 3
 
 
 class Client:
@@ -151,6 +156,7 @@ class Channel:
             self.theme.warm()
         sound.sting(cfg.breaking.sound, getattr(self.theme, "kind", "studio"))   # synthesize it now
         self.clients: set[Client] = set()
+        self.hls_seen: dict[str, float] = {}     # HLS viewer -> when it last asked for anything
         self.session: Session | None = None
         self.idle_handle: asyncio.TimerHandle | None = None
         self._lock = asyncio.Lock()
@@ -194,10 +200,27 @@ class Channel:
             self.idle_handle = asyncio.get_running_loop().call_later(
                 idle, lambda: asyncio.create_task(self._idle_stop()))
 
+    def hls_viewers(self) -> int:
+        cutoff = time.monotonic() - HLS_GONE_SECONDS
+        self.hls_seen = {k: t for k, t in self.hls_seen.items() if t >= cutoff}
+        return len(self.hls_seen)
+
+    def _arm_idle(self, delay: float) -> None:
+        if self.idle_handle:
+            self.idle_handle.cancel()
+        self.idle_handle = asyncio.get_running_loop().call_later(
+            delay, lambda: asyncio.create_task(self._idle_stop()))
+
     async def _idle_stop(self) -> None:
         self.idle_handle = None
-        if not self.clients:
-            await self.stop_session(f"idle {self.cfg.stream.idle_seconds:.0f} s")
+        if self.clients:
+            return
+        idle = self.cfg.stream.idle_seconds
+        last_hls = max(self.hls_seen.values(), default=0.0)
+        if time.monotonic() - last_hls < idle:      # an HLS viewer was here recently
+            self._arm_idle(idle - (time.monotonic() - last_hls) + 0.5)
+            return
+        await self.stop_session(f"idle {idle:.0f} s")
 
     # --- HTTP handlers ---
 
@@ -234,12 +257,47 @@ class Channel:
             await resp.write_eof()
         return resp
 
+    def _hls_touch(self, request: web.Request) -> None:
+        peer = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote or "?"
+        if peer not in self.hls_seen or time.monotonic() - self.hls_seen[peer] > HLS_GONE_SECONDS:
+            log.info("%s: HLS viewer %s", self.info.name, peer)
+        self.hls_seen[peer] = time.monotonic()
+        if not self.clients:
+            self._arm_idle(self.cfg.stream.idle_seconds)
+
+    async def hls_playlist(self, request: web.Request) -> web.Response:
+        self._hls_touch(request)
+        await self.ensure_session()
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            s = self.session
+            if s and len(s.tsbuf.finished()) >= HLS_START_SEGMENTS:
+                text = s.tsbuf.hls_playlist(f"/hls/{self.info.id}/{{seq}}.ts")
+                return web.Response(body=text.encode(), content_type="application/vnd.apple.mpegurl",
+                                    headers={"Cache-Control": "no-cache"})
+            await asyncio.sleep(0.1)
+        raise web.HTTPServiceUnavailable(text="the channel did not start")
+
+    async def hls_segment(self, request: web.Request) -> web.Response:
+        self._hls_touch(request)
+        s = self.session
+        try:
+            seq = int(request.match_info["seq"])
+        except ValueError:
+            raise web.HTTPNotFound() from None
+        data = s.tsbuf.hls_segment(seq) if s else None
+        if data is None:
+            raise web.HTTPNotFound()
+        return web.Response(body=data, content_type="video/mp2t", headers={"Cache-Control": "max-age=60"})
+
     def status(self) -> dict:
         s = self.session
+        hls = self.hls_viewers()
         return {
             "name": self.info.name, "number": self.info.number, "theme": self.info.theme,
             "running": bool(s),
-            "viewers": len(self.clients),
+            "viewers": len(self.clients) + hls,
+            "hls_viewers": hls,
             "on_air": s.playout.on_air if s else None,
             "seconds_ahead": round(s.frames / s.fps - (time.monotonic() - s.t0), 2) if s else None,
             "lead_reached_after": round(s.lead_after, 2) if s and s.lead_after else None,
@@ -264,6 +322,18 @@ class Station:
         if ch is None:
             raise web.HTTPNotFound()
         return await ch.live(request)
+
+    def _channel(self, request: web.Request) -> Channel:
+        ch = self.channels.get(request.match_info["id"])
+        if ch is None:
+            raise web.HTTPNotFound()
+        return ch
+
+    async def hls_playlist(self, request: web.Request) -> web.Response:
+        return await self._channel(request).hls_playlist(request)
+
+    async def hls_segment(self, request: web.Request) -> web.Response:
+        return await self._channel(request).hls_segment(request)
 
     async def playlist(self, request: web.Request) -> web.Response:
         host = request.headers.get("Host") or f"localhost:{self.cfg.stream.port}"
@@ -291,6 +361,8 @@ def make_app(cfg: Config) -> web.Application:
     app["station"] = st
     app.router.add_get("/live.ts", st.live_main)          # GET also answers HEAD
     app.router.add_get("/live/{id}.ts", st.live_by_id)
+    app.router.add_get("/hls/{id}.m3u8", st.hls_playlist)
+    app.router.add_get("/hls/{id}/{seq}.ts", st.hls_segment)
     app.router.add_get("/playlist.m3u", st.playlist)
     app.router.add_get("/guide.xml", st.guide)
     app.router.add_get("/health", st.health)
