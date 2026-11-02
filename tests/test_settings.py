@@ -97,7 +97,8 @@ def test_feeds_on_off_add_and_local_feeds_stay_out_of_the_config(cfg_file):
     assert "town.example" in (cfg_file.parent / "local.toml").read_text()
     feeds = {f["url"]: f for f in st.snapshot()["feeds"]}
     assert not feeds[npr]["enabled"] and feeds["https://town.example/rss"]["origin"] == "local"
-    assert feeds["https://wire.example/rss"]["origin"] == "config" and len(feeds) == 23   # 21 built-in + 2
+    from anchorless.config import default_sources
+    assert feeds["https://wire.example/rss"]["origin"] == "config" and len(feeds) == len(default_sources()) + 2
     with pytest.raises(SettingsError, match="http"):
         patch(st, {"op": "feed_add", "origin": "config", "value": {"name": "X", "url": "file:///etc/passwd"}})
 

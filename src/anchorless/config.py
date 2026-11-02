@@ -250,7 +250,8 @@ def _rss(name: str, url: str, scope: Scope = "national", category: str = "genera
 
 
 def default_sources() -> list[SourceConfig]:
-    """Major outlets' public RSS feeds, checked working on 2026-11-01."""
+    """Major outlets' public RSS feeds, checked working on 2026-11-01 (PBS NewsHour, NPR
+    politics and The Washington Post added 2026-11-02)."""
     nyt = "https://rss.nytimes.com/services/xml/rss/nyt/"
     cnbc = "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id="
     return [
@@ -273,6 +274,16 @@ def default_sources() -> list[SourceConfig]:
         _rss("BBC News", "https://feeds.bbci.co.uk/news/world/rss.xml", "world"),
         _rss("BBC News", "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml"),
         _rss("Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml", "world"),
+        _rss("PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/headlines"),
+        _rss("PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/politics"),
+        _rss("PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/world", "world"),
+        _rss("NPR", "https://feeds.npr.org/1014/rss.xml"),                    # politics
+        # The Washington Post: its feed server answered 502 on 2026-11-02 (listed as
+        # working in September); these recover on their own when it does.
+        _rss("The Washington Post", "https://feeds.washingtonpost.com/rss/national"),
+        _rss("The Washington Post", "https://feeds.washingtonpost.com/rss/politics"),
+        _rss("The Washington Post", "https://feeds.washingtonpost.com/rss/world", "world"),
+        _rss("The Washington Post", "https://feeds.washingtonpost.com/rss/business", category="business"),
         # /select/ is CNBC's shopping and credit-card advice, not news.
         _rss("CNBC", cnbc + "10001147", category="business", exclude=["/select/"]),
         _rss("CNBC", cnbc + "100003114", category="business", exclude=["/select/"]),
