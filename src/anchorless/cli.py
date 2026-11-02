@@ -92,7 +92,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.command == "check-config":
-        print(cfg.model_dump_json(indent=2))
+        shown = cfg.model_copy(deep=True)
+        if shown.admin.password:
+            shown.admin.password = "<set>"           # never print the settings password
+        print(shown.model_dump_json(indent=2))
         return 0
     if args.command == "fetch":
         return asyncio.run(_fetch(cfg, args.json))
