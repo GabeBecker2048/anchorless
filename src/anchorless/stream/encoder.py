@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import collections
 import contextlib
 import fcntl
 import logging
@@ -135,6 +136,7 @@ class Encoder:
         self._stderr_task: asyncio.Task | None = None
         self._in: int | None = None       # our end of ffmpeg's stdin (a plain pipe)
         self._fx: int | None = None       # our end of the sound-effects pipe
+        self._pending: collections.deque[bytes | memoryview] = collections.deque()
 
     async def start(self) -> None:
         files = music_files(self.cfg.audio.music_dir)
@@ -179,14 +181,26 @@ class Encoder:
             if text and "not supported by this driver" not in text:
                 log.warning("ffmpeg: %s", text)
 
+    # The effects track runs this many frames ahead of the video. ffmpeg reads both
+    # pipes, and at startup it reads them one at a time: it waits for audio while
+    # we wait for it to take a (1.2-1.6 MB) video frame, and that deadlocks
+    # (ffmpeg 7.1 needs more than one frame's audio). Sync is unaffected: it is set
+    # by sample counts, not by when the bytes arrive.
+    AUDIO_LEAD_FRAMES = 12
+
     def write_blocking(self, frame: bytes | memoryview, audio: bytes | None = None) -> None:
         """Send one frame and its slice of the effects track (call from a worker thread).
         Raises OSError once ffmpeg is gone."""
-        # Audio first: it is small and always fits the pipe, so ffmpeg never waits on
-        # the effects track while we wait on the video pipe.
         if audio:
             self._write("_fx", audio)
-        self._write("_in", frame)
+        self._pending.append(frame)
+        while len(self._pending) > self.AUDIO_LEAD_FRAMES:
+            self._write("_in", self._pending.popleft())
+
+    def flush_blocking(self) -> None:
+        """Send the video frames still held back (before finishing a file)."""
+        while self._pending:
+            self._write("_in", self._pending.popleft())
 
     def _write(self, which: str, data: bytes | memoryview) -> None:
         view = memoryview(data)
