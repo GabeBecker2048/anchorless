@@ -53,9 +53,26 @@ function failed(text) {
   $("msg").textContent = text;
 }
 
+// Why this channel can't be watched right now ([stream] max_sessions / max_viewers), if so.
+function busy(ch) {
+  const l = status?.limits;
+  if (!l) return null;
+  if (l.max_viewers >= 0 && l.viewers >= l.max_viewers) {
+    return l.max_viewers === 0 ? "NOBODY CAN WATCH RIGHT NOW (max_viewers = 0)" : `BUSY: ${l.viewers} ALREADY WATCHING, THE MOST ALLOWED`;
+  }
+  if (!ch.running && l.max_sessions >= 0 && l.sessions >= l.max_sessions) {
+    if (l.max_sessions === 0) return "NO CHANNEL CAN START RIGHT NOW (max_sessions = 0)";
+    const on = status.channels.filter((c) => c.running).map((c) => c.name).join(", ");
+    return `BUSY: ${l.sessions} CHANNEL${l.sessions > 1 ? "S" : ""} ALREADY ON${on ? " (" + on + ")" : ""} - TRY ONE OF THOSE, OR AGAIN LATER`;
+  }
+  return null;
+}
+
 function watch() {
   const ch = channel();
   if (!ch || player) return;
+  const full = busy(ch);
+  if (full) { box.classList.add("error"); $("msg").textContent = full; return; }
   const how = engine();
   if (!how) {
     box.classList.add("error");
@@ -75,7 +92,9 @@ function watch() {
   player = mpegts.createPlayer({ type: "mpegts", isLive: true, url: ch.stream },
     { enableStashBuffer: true, liveBufferLatencyChasing: false, lazyLoad: false, autoCleanupSourceBuffer: true });
   player.attachMediaElement(video);
-  player.on(mpegts.Events.ERROR, (type, detail) => failed("LOST THE SIGNAL (" + (detail || type) + ") - PRESS PLAY TO RETRY"));
+  player.on(mpegts.Events.ERROR, (type, detail, info) => failed(info && info.code === 503
+    ? "BUSY - THE CHANNEL LIMIT IS REACHED. TRY AGAIN SHORTLY"
+    : "LOST THE SIGNAL (" + (detail || type) + ") - PRESS PLAY TO RETRY"));
   player.load();
   const p = player.play();
   if (p && p.catch) p.catch(() => { /* playback starts once data arrives */ });

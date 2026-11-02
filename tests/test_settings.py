@@ -162,7 +162,7 @@ def test_login_guards_and_a_save_applies_live(cfg_file):
                 handler._fails.clear()
         assert (await client.post("/api/login", json={"password": "secret-password-1"}, headers=W)).status == 200
         snap = await (await client.get("/api/settings")).json()
-        assert "password" not in str(snap["sections"]) and snap["file_only"]["admin"]["password"] == "set"
+        assert "secret-password-1" not in json.dumps(snap) and snap["file_only"]["admin"]["password"] == "set"
         r = await client.patch("/api/settings", json={"ops": [
             {"op": "set", "key": "rundown.page_seconds", "old": 12.0, "value": 8}]})
         assert r.status == 403                                        # writes need the header
@@ -380,3 +380,55 @@ def test_changes_are_recorded_with_who_and_what(cfg_file):
         assert keys == {"rundown.page_seconds", "feed https://feeds.npr.org/1001/rss.xml"}
         assert (cfg_file.parent / "data" / "settings-history.jsonl").exists()
     _app_test(cfg_file, {"ANCHORLESS__ADMIN__PASSWORD": "secret-password-1"}, body)
+
+
+# --- viewer limits and https for the viewer page ---
+
+def test_session_and_viewer_limits(cfg_file):
+    cfg_file.write_text(cfg_file.read_text() + '\n[[extra_channel]]\ntheme = "classic"\nname = "B"\nshow_on = "web"\n')
+
+    async def body(client, app):
+        st = app["station"]
+        main, b = st.channels.values()
+        assert st.cfg.stream.max_sessions == 2 and st.cfg.stream.max_viewers == -1       # the defaults
+        st.cfg.stream.max_sessions = 1
+        main.session = object()                       # pretend NEWS is on
+        assert st._admit(main, True) is None          # joining a channel that is on: fine
+        assert "max_sessions" in st._admit(b, True)   # a second channel would be one too many
+        st.cfg.stream.max_sessions = -1
+        assert st._admit(b, True) is None             # -1: no limit
+        main.session = None
+        st.cfg.stream.max_viewers = 0                 # 0: online, but nobody can watch
+        r = await client.get("/live.ts")
+        assert r.status == 503 and r.headers["Retry-After"] == "30" and "max_viewers = 0" in await r.text()
+        assert (await client.get("/hls/anchorless.news.m3u8")).status == 503
+        assert (await client.head("/live.ts")).status == 200   # probes still answer
+        st.cfg.stream.max_viewers, st.cfg.stream.max_sessions = -1, 0
+        r = await client.get("/live/anchorless.b.ts")
+        assert r.status == 503 and "max_sessions = 0" in await r.text()
+        assert main.session is None and b.session is None      # nothing was started
+        status = await (await client.get("/api/status")).json()
+        assert status["limits"] == {"max_sessions": 0, "max_viewers": -1, "sessions": 0, "viewers": 0}
+    _app_test(cfg_file, {}, body)
+
+
+def test_viewer_page_https_is_optional_and_never_the_tv_side(cfg_file):
+    cfg_file.write_text(cfg_file.read_text() + '\n[admin]\ntrusted_proxies = ["127.0.0.1"]\n')
+
+    async def body(client, app):
+        st = app["station"]
+        lan_http = {"X-Forwarded-For": "192.168.1.50", "X-Forwarded-Proto": "http"}
+        lan_https = {**lan_http, "X-Forwarded-Proto": "https"}
+        assert st.cfg.web.require_https is False                                  # off by default
+        assert (await client.get("/", headers=lan_http)).status == 200
+        st.cfg.web.require_https = True
+        r = await client.get("/", headers=lan_http)
+        assert r.status == 403 and "Use https" in await r.text()
+        assert (await client.get("/assets/style.css", headers=lan_http)).status == 403
+        assert (await client.get("/api/status", headers=lan_http)).status == 403
+        assert (await client.get("/", headers=lan_https)).status == 200
+        assert (await client.get("/", )).status == 200                           # localhost is exempt
+        for tv in ("/playlist.m3u", "/guide.xml", "/health"):                     # TV tuners: plain http
+            assert (await client.get(tv, headers=lan_http)).status == 200, tv
+        assert (await client.head("/live.ts", headers=lan_http)).status == 200
+    _app_test(cfg_file, {}, body)

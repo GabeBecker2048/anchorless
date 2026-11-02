@@ -165,9 +165,20 @@ class Channel:
         # A settings change that needs this channel rebuilt, waiting for it to go idle.
         self.pending: ChannelInfo | None = None
         self.on_stopped: Callable[[Channel], None] | None = None
+        # Set by the Station: None, or why this viewer / a new session can't start.
+        self.admit: Callable[[Channel, bool], str | None] | None = None
         self.idle_handle: asyncio.TimerHandle | None = None
         self._lock = asyncio.Lock()
         self.stats = {"sessions": 0, "last_start": None, "last_stop": None, "last_stop_reason": None}
+
+    async def _start_or_refuse(self, new_viewer: bool) -> None:
+        """Check the limits and start the session in one step (no await between them,
+        so two viewers arriving together can't both slip past a limit)."""
+        reason = self.admit(self, new_viewer) if self.admit else None
+        if reason:
+            log.info("%s: refused a viewer: %s", self.info.name, reason)
+            raise web.HTTPServiceUnavailable(text=reason, headers={"Retry-After": "30"})
+        await self.ensure_session()
 
     async def ensure_session(self) -> None:
         async with self._lock:
@@ -235,13 +246,15 @@ class Channel:
 
     async def live(self, request: web.Request) -> web.StreamResponse:
         resp = web.StreamResponse(headers={"Content-Type": "video/mp2t", "Cache-Control": "no-cache"})
-        await resp.prepare(request)          # headers out now: players wait on them
         if request.method == "HEAD":
+            await resp.prepare(request)
             return resp
-        client = Client(request.remote or "?")
         if self.idle_handle:
             self.idle_handle.cancel()
             self.idle_handle = None
+        await self._start_or_refuse(new_viewer=True)    # 503 if the limits say no
+        await resp.prepare(request)          # headers out now: players wait on them
+        client = Client(request.remote or "?")
         s = self.session
         if s and s.tsbuf:
             # Joining a running session: the head start, then live from the next packet.
@@ -252,7 +265,6 @@ class Channel:
         self.clients.add(client)
         log.info("%s: viewer %s connected (%d watching)", self.info.name, client.peer, len(self.clients))
         try:
-            await self.ensure_session()
             while (chunk := await client.queue.get()) is not None:
                 client.queued -= len(chunk)
                 await resp.write(chunk)
@@ -266,15 +278,29 @@ class Channel:
             await resp.write_eof()
         return resp
 
+    @staticmethod
+    def _hls_peer(request: web.Request) -> str:
+        return request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote or "?"
+
+    def _hls_is_new(self, request: web.Request) -> bool:
+        peer = self._hls_peer(request)
+        return peer not in self.hls_seen or time.monotonic() - self.hls_seen[peer] > HLS_GONE_SECONDS
+
     def _hls_touch(self, request: web.Request) -> None:
-        peer = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote or "?"
-        if peer not in self.hls_seen or time.monotonic() - self.hls_seen[peer] > HLS_GONE_SECONDS:
+        peer = self._hls_peer(request)
+        if self._hls_is_new(request):
             log.info("%s: HLS viewer %s", self.info.name, peer)
         self.hls_seen[peer] = time.monotonic()
         if not self.clients:
             self._arm_idle(self.cfg.stream.idle_seconds)
 
     async def hls_playlist(self, request: web.Request) -> web.Response:
+        new = self._hls_is_new(request)
+        if new or not self.session:
+            reason = self.admit(self, new) if self.admit else None
+            if reason:
+                log.info("%s: refused an HLS viewer: %s", self.info.name, reason)
+                raise web.HTTPServiceUnavailable(text=reason, headers={"Retry-After": "30"})
         self._hls_touch(request)
         await self.ensure_session()
         deadline = time.monotonic() + 20
@@ -333,7 +359,29 @@ class Station:
     def _new_channel(self, info: ChannelInfo) -> Channel:
         ch = Channel(self.cfg, self.newsroom, info)
         ch.on_stopped = self._channel_stopped
+        ch.admit = self._admit
         return ch
+
+    def viewers(self) -> int:
+        return sum(len(c.clients) + c.hls_viewers() for c in self.channels.values())
+
+    def sessions(self) -> int:
+        return sum(1 for c in self.channels.values() if c.session)
+
+    def _admit(self, ch: Channel, new_viewer: bool) -> str | None:
+        """None if this viewer may watch, else why not ([stream] max_viewers / max_sessions)."""
+        s = self.cfg.stream
+        if new_viewer and s.max_viewers >= 0 and self.viewers() >= s.max_viewers:
+            if s.max_viewers == 0:
+                return "nobody can watch right now ([stream] max_viewers = 0)"
+            return f"busy: {s.max_viewers} viewer(s) already watching - the most allowed ([stream] max_viewers)"
+        if not ch.session and s.max_sessions >= 0 and self.sessions() >= s.max_sessions:
+            if s.max_sessions == 0:
+                return "no channel can start right now ([stream] max_sessions = 0)"
+            on = ", ".join(c.info.name for c in self.channels.values() if c.session)
+            return (f"busy: {s.max_sessions} channel(s) already on ({on}) - the most at once "
+                    "([stream] max_sessions); try again when one is off, or watch one of those")
+        return None
 
     @staticmethod
     def _render_key(cfg: Config, info: ChannelInfo) -> tuple:

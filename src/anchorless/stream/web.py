@@ -21,6 +21,7 @@ import io
 import logging
 import time
 from datetime import UTC, datetime
+from html import escape
 from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -87,6 +88,8 @@ def status(st: Station) -> dict:
                           "local_min_sources": b.local_min_sources, "local_alerts": b.local_alerts,
                           "cooldown_minutes": b.cooldown_minutes},
         "idle_seconds": st.cfg.stream.idle_seconds,
+        "limits": {"max_sessions": st.cfg.stream.max_sessions, "max_viewers": st.cfg.stream.max_viewers,
+                   "sessions": st.sessions(), "viewers": st.viewers()},
     }
 
 
@@ -224,10 +227,30 @@ async def security_headers(request: web.Request, response: web.StreamResponse) -
         h["X-Frame-Options"] = "DENY"
 
 
+# The viewer page and its files: [web] require_https. (The settings page and its API
+# have their own rule, [admin] require_https; the TV side is never https-only.)
+VIEWER_PATHS = ("/assets/", "/static/", "/fonts/", "/poster/")
+HTTPS_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Anchorless: use https</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"></head><body>
+<h1>Use https</h1><p>This page is only available over https ([web] require_https in the config).
+Open it through your https address, e.g. <a href="https://{host}/">https://{host}/</a>.</p></body></html>"""
+
+
 def add_routes(app: web.Application, station: Station) -> None:
     app.on_response_prepare.append(security_headers)
     w = Web(station)
     api = SettingsApi(station)
+
+    @web.middleware
+    async def viewer_https(request: web.Request, handler):
+        p = request.path
+        if (p == "/" or p == "/api/status" or p.startswith(VIEWER_PATHS)) and \
+                not api.admin.https_ok(request, station.cfg.web.require_https):
+            host = escape(request.headers.get("X-Forwarded-Host") or request.host.split(":")[0])
+            return web.Response(status=403, text=HTTPS_PAGE.format(host=host), content_type="text/html")
+        return await handler(request)
+
+    app.middlewares.append(viewer_https)
     app.router.add_get("/settings", api.page)
     app.router.add_get("/api/settings", api.get)
     app.router.add_patch("/api/settings", api.patch)
