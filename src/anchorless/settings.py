@@ -86,7 +86,8 @@ FILE_ONLY = {
     "video": None, "stream": None, "data": None,
     "audio": ["music_dir", "bitrate"],
     "location": ["sources_file", "city"],
-    "admin": ["allow_from", "trusted_proxies", "session_days"],
+    "admin": ["allow_from", "trusted_proxies", "session_days", "require_https"],
+    "feeds": ["allow_private"],
 }
 
 

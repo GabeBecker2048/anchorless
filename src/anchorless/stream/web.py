@@ -31,6 +31,7 @@ from aiohttp import web
 
 from .. import __version__
 from ..config import SourceConfig
+from ..netguard import BlockedURL, check_url, guard_hooks
 from ..settings import SettingsError
 from ..sources.rss import USER_AGENT, parse_feed
 from .admin import Admin
@@ -155,8 +156,16 @@ class SettingsApi:
             body = await request.json()
         except Exception:
             raise web.HTTPBadRequest(text='{"error": "expected JSON"}', content_type="application/json") from None
+        ops = list(body.get("ops") or [])
+        for op in ops:      # a feed being added or changed must be on the public internet
+            if isinstance(op, dict) and op.get("op") in ("feed_add", "feed_edit"):
+                try:
+                    await check_url(str((op.get("value") or {}).get("url", "")).strip(),
+                                    self.st.cfg.feeds.allow_private)
+                except BlockedURL as err:
+                    return web.json_response({"error": str(err)}, status=400)
         try:
-            cfg = await settings.patch(list(body.get("ops") or []))
+            cfg = await settings.patch(ops)
         except SettingsError as err:
             return web.json_response({"error": str(err), "keys": getattr(err, "keys", [])}, status=err.status)
         except (KeyError, TypeError, ValueError, StopIteration) as err:
@@ -170,14 +179,18 @@ class SettingsApi:
         self.admin.check(request, write=True)
         body = await request.json()
         url = str(body.get("url", "")).strip()
-        if not url.startswith(("http://", "https://")):
-            return web.json_response({"ok": False, "error": "the URL must start with http:// or https://"})
+        allow_private = self.st.cfg.feeds.allow_private
+        try:
+            await check_url(url, allow_private)
+        except BlockedURL as err:
+            return web.json_response({"ok": False, "error": str(err)})
         src = SourceConfig(name=str(body.get("name") or "check"), url=url, compressed=body.get("compressed", True))
         headers = {"User-Agent": USER_AGENT}
         if not src.compressed:
             headers["Accept-Encoding"] = "identity"
         try:
-            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True,
+                                         event_hooks=guard_hooks(allow_private)) as client:
                 r = await client.get(url, headers=headers)
             r.raise_for_status()
             stories = parse_feed(r.content, src)

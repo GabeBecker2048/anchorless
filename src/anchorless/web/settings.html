@@ -187,6 +187,13 @@ async function load() {
   }
   if (r.status === 404) return showState(el("div", { class: "card" }, el("h2", {}, "NO CONFIG FILE"),
       el("p", {}, "Anchorless was started without a config file, so there is nothing to edit.")));
+  if (r.status === 403 && r.data.error === "https required") {
+    const https = "https://" + location.host + "/settings";
+    return showState(el("div", { class: "card" }, el("h2", {}, "USE HTTPS"),
+      el("p", {}, "The settings page only works over https, so your password is never sent unencrypted."),
+      el("p", {}, "Open it through your https address (your reverse proxy), e.g. ", el("a", { href: https }, https), "."),
+      el("p", { class: "page-note" }, "No reverse proxy? Open it on the server itself (localhost), or set [admin] require_https = false in the config file.")));
+  }
   if (r.status === 403) return showState(el("div", { class: "card" }, el("h2", {}, "NOT ALLOWED"),
       el("p", {}, r.data.error || "forbidden"), el("p", { class: "page-note" }, "See [admin] allow_from in the config file.")));
   if (r.status === 401) return showLogin();

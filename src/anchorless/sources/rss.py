@@ -15,6 +15,7 @@ import httpx
 from .. import __version__
 from ..config import SourceConfig
 from ..models import Story
+from ..netguard import guard_hooks
 from ..text import clean_headline, clean_text, is_filler, shorten, story_key
 
 log = logging.getLogger(__name__)
@@ -115,13 +116,14 @@ class RssFetcher:
             out += await self._fetch(client, source)
         return out
 
-    async def fetch_all(self, sources: list[SourceConfig]) -> list[Story]:
+    async def fetch_all(self, sources: list[SourceConfig], allow_private: bool = False) -> list[Story]:
         enabled = [s for s in sources if s.enabled and s.type == "rss"]
         by_host: dict[str, list[SourceConfig]] = {}
         for s in enabled:
             by_host.setdefault(httpx.URL(s.url).host, []).append(s)
         async with httpx.AsyncClient(
             timeout=self.timeout, follow_redirects=True, headers={"User-Agent": USER_AGENT},
+            event_hooks=guard_hooks(allow_private),        # public addresses only, redirects too
         ) as client:
             results = await asyncio.gather(*(self._fetch_host(client, group) for group in by_host.values()))
         return [story for batch in results for story in batch]
