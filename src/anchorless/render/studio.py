@@ -93,19 +93,16 @@ class Lighting:
     cone: float          # spotlight cone strength (alpha)
     lit: float           # share of office windows lit
     stars: float
-    sun: float           # 0 = none, 1 = sun, -1 = moon
-    sun_y: float         # 0 = top of the window, 1 = horizon
-    sun_color: Color
 
 
 NIGHT = Lighting((6, 6, 28), (34, 22, 78), (18, 22, 54), (38, 46, 100), (48, 58, 124), (60, 46, 98),
-                 (46, 34, 78), (16, 14, 40), 26, 0.45, 1.0, -1, 0.25, (230, 230, 210))
+                 (46, 34, 78), (16, 14, 40), 26, 0.45, 1.0)
 DAWN = Lighting((96, 96, 176), (255, 164, 120), (34, 40, 90), (72, 70, 128), (86, 90, 152), (84, 66, 118),
-                (66, 50, 98), (62, 44, 92), 16, 0.25, 0.0, 1, 0.8, (255, 190, 110))
+                (66, 50, 98), (62, 44, 92), 16, 0.25, 0.0)
 DAY = Lighting((84, 168, 240), (196, 232, 255), (50, 70, 140), (92, 112, 182), (112, 132, 198), (100, 84, 146),
-               (80, 66, 124), (78, 96, 150), 6, 0.0, 0.0, 1, 0.2, (255, 244, 170))
+               (80, 66, 124), (78, 96, 150), 6, 0.0, 0.0)
 DUSK = Lighting((58, 38, 120), (255, 118, 88), (38, 32, 86), (84, 58, 120), (102, 76, 148), (80, 58, 110),
-                (62, 44, 90), (40, 26, 64), 18, 0.35, 0.15, 1, 0.85, (255, 120, 80))
+                (62, 44, 90), (40, 26, 64), 18, 0.35, 0.15)
 
 # (local hour, lighting); colors blend between neighbours.
 TIMELINE = [(0, NIGHT), (5.25, NIGHT), (6.5, DAWN), (8.5, DAY), (16.75, DAY), (18.5, DUSK), (20, NIGHT),
@@ -123,12 +120,54 @@ def lighting_at(hour: float) -> Lighting:
     for (h0, a), (h1, b) in zip(TIMELINE, TIMELINE[1:], strict=False):
         if h0 <= hour <= h1:
             t = (hour - h0) / (h1 - h0) if h1 > h0 else 0
-            # The moon and the sun don't blend: one swaps for the other halfway.
-            sun = a.sun if t < 0.5 else b.sun
-            vals = {f.name: _mix(getattr(a, f.name), getattr(b, f.name), t) for f in fields(Lighting)}
-            vals["sun"] = sun
-            return Lighting(**vals)
+            return Lighting(**{f.name: _mix(getattr(a, f.name), getattr(b, f.name), t) for f in fields(Lighting)})
     return NIGHT
+
+
+# The sun and the moon each cross the window on their own arc: up from behind the
+# rooftops on the left, over the top, and down behind the rooftops on the right.
+# One is always down before the other comes up, so neither appears mid-sky.
+SUN_HOURS = (6.0, 19.0)        # rises, sets (local hour)
+MOON_HOURS = (19.5, 5.5)       # rises in the evening, sets the next morning
+SUN_LOW, SUN_HIGH = (255, 140, 80), (255, 244, 170)
+MOON_COLOR = (230, 230, 210)
+ARC_X = (17, 37)               # window x where it rises and sets
+ARC_HORIZON = (24, 28)         # its y there: just below the rooftops
+ARC_TOP = 5                    # its y at the top of the arc (clear of every building)
+
+
+@dataclass(frozen=True)
+class SkyBody:
+    kind: str                  # "sun" or "moon"
+    x: float                   # centre, in window pixels
+    y: float
+    r: int
+    color: Color
+
+
+def _progress(hour: float, rise: float, set_: float) -> float | None:
+    """How far along its arc a body is (0 to 1), or None while it is down."""
+    span = (set_ - rise) % 24
+    p = ((hour - rise) % 24) / span
+    return p if p <= 1 else None
+
+
+def sky_bodies(hour: float) -> list[SkyBody]:
+    """The sun and/or moon at this local hour, in window coordinates."""
+    out = []
+    for kind, (rise, set_) in (("sun", SUN_HOURS), ("moon", MOON_HOURS)):
+        p = _progress(hour % 24, rise, set_)
+        if p is None:
+            continue
+        lift = math.sin(math.pi * p) ** 0.5        # rises quickly, lingers near the top
+        x = ARC_X[0] + (ARC_X[1] - ARC_X[0]) * p
+        horizon = ARC_HORIZON[0] + (ARC_HORIZON[1] - ARC_HORIZON[0]) * p
+        y = horizon - (horizon - ARC_TOP) * lift
+        if kind == "sun":
+            out.append(SkyBody(kind, x, y, 3, _mix(SUN_LOW, SUN_HIGH, lift)))
+        else:
+            out.append(SkyBody(kind, x, y, 3, MOON_COLOR))
+    return out
 
 
 # --- drawing helpers -----------------------------------------------------------
@@ -152,23 +191,16 @@ def _dither_gradient(size: tuple[int, int], top, bottom, steps: int = 6) -> Imag
     w, h = size
     cols = [tuple(round(top[c] + (bottom[c] - top[c]) * i / (steps - 1)) for c in range(3)) for i in range(steps)]
     band = h / (steps - 1)
-    # Each row is one of two patterns: build them once, paste them.
-    img = Image.new("RGB", size)
+    # Each row repeats a two-pixel pattern: build the rows as bytes.
+    rows = []
     for y in range(h):
         pos = y / band
         i = min(int(pos), steps - 2)
         frac = pos - i
-        row = Image.new("RGB", (w, 1))
-        rp = row.load()
-        for x in range(min(w, 2)):
-            threshold = (0.25, 0.75, 1.0, 0.5)[x + 2 * (y % 2)]
-            rp[x, 0] = cols[i + 1] if frac > threshold - 0.125 else cols[i]
-        if w > 2:
-            pair = row.crop((0, 0, 2, 1))
-            for x in range(0, w, 2):
-                row.paste(pair, (x, 0))
-        img.paste(row, (0, y))
-    return img
+        pair = b"".join(bytes(cols[i + 1] if frac > (0.25, 0.75, 1.0, 0.5)[x + 2 * (y % 2)] - 0.125 else cols[i])
+                        for x in range(2))
+        rows.append((pair * (w // 2 + 1))[: w * 3])
+    return Image.frombytes("RGB", size, b"".join(rows))
 
 
 # --- the theme -------------------------------------------------------------------
@@ -221,14 +253,15 @@ class StudioTheme:
 
     def background(self, now: datetime) -> Image.Image:
         local = now.astimezone(self.cfg.tz)
-        quarter = local.hour * 4 + local.minute // 15         # redrawn every 15 minutes
-        img = self._set_cache.get(quarter)
+        minute = local.hour * 60 + local.minute               # redrawn every minute (~12 ms)
+        img = self._set_cache.get(minute)
         if img is None:
-            img = self._draw_back(lighting_at(quarter / 4))
-            self._set_cache = {quarter: img}
+            img = self._draw_back(minute / 60)
+            self._set_cache = {minute: img}
         return img
 
-    def _draw_back(self, lt: Lighting) -> Image.Image:
+    def _draw_back(self, hour: float) -> Image.Image:
+        lt = lighting_at(hour)
         lw, lh, fy = self.lw, self.lh, self.FLOOR_Y
         img = _dither_gradient((lw, lh), lt.wall_top, lt.wall_bottom, steps=5)
         d = ImageDraw.Draw(img)
@@ -249,7 +282,7 @@ class StudioTheme:
         _box(d, 0, fy, lw, fy, _mix(lt.floor_a, WHITE, 0.2))
 
         # The window on the city, stage left.
-        self._draw_window(img, lt)
+        self._draw_window(img, lt, hour)
         d = ImageDraw.Draw(img)
 
         # Ceiling truss and spotlights with their light cones.
@@ -293,7 +326,7 @@ class StudioTheme:
         _box(d, 0, self.crawl_top + 2, 65, lh, GOLD)
         return self._up(img)
 
-    def _draw_window(self, img: Image.Image, lt: Lighting) -> None:
+    def _draw_window(self, img: Image.Image, lt: Lighting, hour: float) -> None:
         d = ImageDraw.Draw(img)
         wx, wy, ww, wh = 10, 17, 51, 39
         _box(d, wx - 1, wy - 1, wx + ww, wy + wh, INK)
@@ -302,12 +335,14 @@ class StudioTheme:
         if lt.stars > 0.3:
             for sx, sy in ((5, 3), (18, 6), (33, 2), (46, 8), (26, 11), (40, 4), (11, 9)):
                 sd.point((sx, sy), fill=_mix(lt.sky_top, WHITE, lt.stars))
-        if lt.sun:
-            cx, cy = 38, round(2 + lt.sun_y * (wh - 14))
-            r = 3 if lt.sun > 0 else 2
-            sd.ellipse([cx - r, cy - r, cx + r, cy + r], fill=lt.sun_color)
-            if lt.sun < 0:   # a crescent: bite out of the moon
-                sd.ellipse([cx - r + 1, cy - r - 1, cx + r + 1, cy + r - 1], fill=_mix(lt.sky_top, lt.sky_bottom, 0.2))
+        for body in sky_bodies(hour):      # drawn before the buildings, so they rise from behind them
+            cx, cy, r = round(body.x), round(body.y), body.r
+            mask = Image.new("L", (2 * r + 1, 2 * r + 1), 0)
+            md = ImageDraw.Draw(mask)
+            md.ellipse([0, 0, 2 * r, 2 * r], fill=255)
+            if body.kind == "moon":        # a crescent: a bite out of the disc shows the sky
+                md.ellipse([2, -2, 2 * r + 2, 2 * r - 2], fill=0)
+            sky.paste(body.color, (cx - r, cy - r, cx + r + 1, cy + r + 1), mask)
         for bx, bw, bh in ((0, 8, 22), (7, 6, 30), (13, 9, 18), (22, 7, 26), (29, 10, 14), (38, 6, 33), (44, 7, 20)):
             sd.rectangle([bx, wh - bh, bx + bw - 1, wh - 1], fill=lt.building)
             for yy in range(wh - bh + 2, wh - 2, 3):
@@ -386,7 +421,7 @@ class StudioTheme:
         iso_box(d, mx, my, 10, 12, 3, WHITE, (196, 196, 214), COFFEE)         # the mug
         _box(d, mx + 1, my + 1, mx + 9, my + 1, (60, 36, 24))
         _box(d, mx + 2, my + 5, mx + 8, my + 6, RED)                          # stripe
-        d.arc([mx - 5, my + 2, mx + 1, my + 9], 90, 270, fill=INK, width=2)  # handle
+        d.arc([mx - 4, my + 2, mx + 2, my + 9], 90, 270, fill=INK, width=2)  # handle
 
         # A potted plant, stage left.
         iso_box(d, 24, 190, 20, 18, 5, POT, POT_SIDE, POT_TOP)

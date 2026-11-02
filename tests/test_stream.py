@@ -153,6 +153,25 @@ def test_studio_lighting_follows_the_clock():
     assert dawn.sky_top != NIGHT.sky_top and dawn.sky_top != DAY.sky_top
 
 
+def test_sun_and_moon_move_smoothly_and_never_swap_mid_sky():
+    from anchorless.render.studio import ARC_HORIZON, sky_bodies
+
+    prev = {b.kind: b for b in sky_bodies(-1 / 60)}    # 23:59 the evening before
+    for minute in range(24 * 60 + 1):
+        bodies = {b.kind: b for b in sky_bodies(minute / 60)}
+        assert len(bodies) <= 1, f"sun and moon both up at minute {minute}"
+        for kind, b in bodies.items():
+            if kind in prev:   # a pixel or two a minute at most (fastest right at the rooftops)
+                assert abs(b.x - prev[kind].x) <= 2 and abs(b.y - prev[kind].y) <= 2
+            else:              # it comes up from behind the rooftops, not out of thin air
+                assert b.y >= ARC_HORIZON[0] - 1
+        for kind, b in prev.items():
+            if kind not in bodies:   # and goes down behind them
+                assert b.y >= ARC_HORIZON[0] - 1
+        prev = bodies
+    assert {b.kind for b in sky_bodies(12)} == {"sun"} and {b.kind for b in sky_bodies(0)} == {"moon"}
+
+
 def test_studio_clock_blinks():
     from anchorless.render.studio import StudioTheme
 
