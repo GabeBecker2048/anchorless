@@ -52,7 +52,8 @@ def frame_format(cfg: Config) -> str:
 
 
 def ffmpeg_args(cfg: Config, music_list: Path | None, output: str = "pipe:1", fmt: str = "mpegts",
-                duration: float | None = None) -> list[str]:
+                duration: float | None = None, fx_input: str = "pipe:3") -> list[str]:
+    """Inputs: 0 = our frames, 1 = our sound-effects track (silence, or a sting), 2 = music."""
     v, a = cfg.video, cfg.audio
     vaapi = v.encoder == "vaapi"
     gop = max(1, round(v.fps * v.gop_seconds))
@@ -60,12 +61,17 @@ def ffmpeg_args(cfg: Config, music_list: Path | None, output: str = "pipe:1", fm
     if vaapi:
         args += ["-vaapi_device", v.vaapi_device]
     gpu_convert = vaapi and v.vaapi_convert == "gpu"
-    args += ["-f", "rawvideo", "-pix_fmt", "bgr0" if gpu_convert else "rgb24", "-s", f"{v.width}x{v.height}", "-framerate", str(v.fps),
+    # Both raw inputs are fully described here: no probing. (Probing waits for data
+    # on each input in turn, and with two pipes from one writer that deadlocks.)
+    noprobe = ["-probesize", "32", "-analyzeduration", "0"]
+    args += [*noprobe, "-f", "rawvideo", "-pix_fmt", "bgr0" if gpu_convert else "rgb24", "-s", f"{v.width}x{v.height}", "-framerate", str(v.fps),
              "-thread_queue_size", "256", "-i", "pipe:0"]
+    # The effects track is written frame by frame alongside the video, so a sting
+    # lands exactly on its picture. Mostly silence: it also keeps audio flowing.
+    args += [*noprobe, "-f", "s16le", "-ar", "48000", "-ch_layout", "stereo", "-thread_queue_size", "256", "-i", fx_input]
     # No -re anywhere: the music is read only as fast as the video timeline needs it.
     if music_list:
         args += ["-f", "concat", "-safe", "0", "-i", str(music_list)]
-    args += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
 
     # Our frames are full-range RGB; TV video is limited-range BT.709.
     if gpu_convert:
@@ -73,11 +79,15 @@ def ffmpeg_args(cfg: Config, music_list: Path | None, output: str = "pipe:1", fm
     else:
         video = "[0:v]scale=out_color_matrix=bt709:out_range=tv," + ("format=nv12,hwupload" if vaapi
                                                                      else "format=yuv420p") + "[v]"
+    fmt_a = "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo"
     if music_list:
-        # The silent track keeps audio flowing even if the music runs out or fails.
-        audio = f"[1:a]volume={a.volume},aresample=48000[m];[m][2:a]amix=inputs=2:duration=longest:normalize=0[a]"
+        # The music ducks under a sting (side-chain compression keyed by the effects).
+        audio = (f"[1:a]{fmt_a},asplit=2[fx][key];"
+                 f"[2:a]volume={a.volume},aresample=48000,{fmt_a}[m0];"
+                 "[m0][key]sidechaincompress=threshold=0.02:ratio=12:attack=8:release=700[m];"
+                 "[m][fx]amix=inputs=2:duration=longest:normalize=0[a]")
     else:
-        audio = "[1:a]anull[a]"
+        audio = f"[1:a]{fmt_a}[a]"
     args += ["-filter_complex", f"{video};{audio}", "-map", "[v]", "-map", "[a]"]
 
     if vaapi:
@@ -98,7 +108,6 @@ def ffmpeg_args(cfg: Config, music_list: Path | None, output: str = "pipe:1", fm
     if fmt == "mpegts":
         args += ["-flush_packets", "1", "-muxdelay", "0", "-muxpreload", "0", "-f", "mpegts", output]
     else:
-        # The audio never ends on its own (the silent track is endless): cut it.
         args += (["-t", f"{duration:.3f}"] if duration else []) + ["-movflags", "+faststart", "-y", "-f", fmt, output]
     return args
 
@@ -125,6 +134,7 @@ class Encoder:
         self.tracks = 0
         self._stderr_task: asyncio.Task | None = None
         self._in: int | None = None       # our end of ffmpeg's stdin (a plain pipe)
+        self._fx: int | None = None       # our end of the sound-effects pipe
 
     async def start(self) -> None:
         files = music_files(self.cfg.audio.music_dir)
@@ -133,7 +143,10 @@ class Encoder:
         if files:
             music_list = Path(self._tmp.name) / "music.txt"
             write_music_list(files, music_list)
-        args = ffmpeg_args(self.cfg, music_list, self.output, self.fmt, self.duration)
+        fx_r, fx_w = os.pipe()
+        with contextlib.suppress(OSError):
+            fcntl.fcntl(fx_w, F_SETPIPE_SZ, 1 << 20)
+        args = ffmpeg_args(self.cfg, music_list, self.output, self.fmt, self.duration, f"pipe:{fx_r}")
         log.debug("ffmpeg: %s", " ".join(args))
         # Frames go through a plain pipe written with blocking writes from the
         # render thread: asyncio's pipe writer re-copies a 1.2 MB frame several
@@ -143,16 +156,19 @@ class Encoder:
             fcntl.fcntl(w, F_SETPIPE_SZ, 1 << 20)
         try:
             self.proc = await asyncio.create_subprocess_exec(
-                *args, stdin=r,
+                *args, stdin=r, pass_fds=(fx_r,),
                 stdout=asyncio.subprocess.PIPE if self.output == "pipe:1" else asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )
         except Exception:
             os.close(w)
+            os.close(fx_w)
             raise
         finally:
             os.close(r)
+            os.close(fx_r)
         self._in = w
+        self._fx = fx_w
         self._stderr_task = asyncio.create_task(self._log_stderr())
 
     async def _log_stderr(self) -> None:
@@ -163,11 +179,19 @@ class Encoder:
             if text and "not supported by this driver" not in text:
                 log.warning("ffmpeg: %s", text)
 
-    def write_blocking(self, frame: bytes | memoryview) -> None:
-        """Send one frame (call from a worker thread). Raises OSError once ffmpeg is gone."""
-        view = memoryview(frame)
+    def write_blocking(self, frame: bytes | memoryview, audio: bytes | None = None) -> None:
+        """Send one frame and its slice of the effects track (call from a worker thread).
+        Raises OSError once ffmpeg is gone."""
+        # Audio first: it is small and always fits the pipe, so ffmpeg never waits on
+        # the effects track while we wait on the video pipe.
+        if audio:
+            self._write("_fx", audio)
+        self._write("_in", frame)
+
+    def _write(self, which: str, data: bytes | memoryview) -> None:
+        view = memoryview(data)
         while view:
-            fd = self._in       # re-read: stop() may close it from the event loop
+            fd = getattr(self, which)       # re-read: stop() may close it from the event loop
             if fd is None:
                 raise BrokenPipeError("encoder input closed")
             n = os.write(fd, view)
@@ -178,10 +202,12 @@ class Encoder:
         return await self.proc.stdout.read(n)
 
     def close_input(self) -> None:
-        fd, self._in = self._in, None
-        if fd is not None:
-            with contextlib.suppress(OSError):
-                os.close(fd)
+        for which in ("_in", "_fx"):
+            fd = getattr(self, which)
+            setattr(self, which, None)
+            if fd is not None:
+                with contextlib.suppress(OSError):
+                    os.close(fd)
 
     async def finish(self, timeout: float = 30) -> int | None:
         """Close the input and wait for ffmpeg to write the rest (for files)."""

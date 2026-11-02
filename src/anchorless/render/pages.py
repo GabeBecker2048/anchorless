@@ -47,6 +47,7 @@ def outlets_line(cluster: Cluster, limit: int = 3) -> str:
 
 
 class ClassicTheme:
+    kind = "classic"
     def __init__(self, cfg: Config, channel_name: str | None = None) -> None:
         self.cfg = cfg
         self.channel_name = (channel_name or cfg.channel.name).upper()

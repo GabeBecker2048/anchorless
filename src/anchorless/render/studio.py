@@ -176,6 +176,7 @@ def _dither_gradient(size: tuple[int, int], top, bottom, steps: int = 6) -> Imag
 class StudioTheme:
     """Same interface as ClassicTheme, so the playout can use either."""
 
+    kind = "studio"
     SCALE = 2
     FLOOR_Y = 168
     DESK = (120, 300, 176, 212, 12)          # x0, x1, top, bottom, depth

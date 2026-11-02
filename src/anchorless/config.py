@@ -137,6 +137,10 @@ class BreakingConfig(_Model):
     cooldown_minutes: float = Field(20, ge=0)
     crawl_tag_minutes: float = Field(60, ge=0)
     title_prefixes: list[str] = Field(default_factory=lambda: ["BREAKING:", "BREAKING NEWS:"])
+    # "auto" (chiptune for the Studio look, "news" for Classic), "chiptune", "news",
+    # "none", or the path of a sound file of your own.
+    sound: str = "auto"
+    sound_volume: float = Field(0.8, ge=0, le=2)
 
 
 class SourceConfig(_Model):

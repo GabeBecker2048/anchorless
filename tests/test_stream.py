@@ -179,3 +179,41 @@ def test_alerts_reach_every_channel(cfg, stories):
     c = Playout(cfg, room, NOW + timedelta(minutes=20))
     c.next_frame()
     assert not c.on_air.startswith("BREAKING")
+
+
+def test_stings_synthesize():
+    from anchorless import sound
+
+    for name in sound.STINGS:
+        pcm = sound.sting(name)
+        assert pcm and len(pcm) % 4 == 0 and 1.5 < len(pcm) / 4 / sound.RATE < 4
+    assert sound.sting("none") is None
+    assert sound.sting("/no/such/file.mp3") is None
+
+
+@pytest.mark.parametrize("fps", [24, 25, 30, 60])
+def test_effects_track_stays_in_step_with_video(stories, cfg, fps):
+    from anchorless import sound
+
+    cfg.video.fps = fps
+    rundown = build_rundown(all_clusters(stories, cfg, NOW), cfg, NOW)
+    news = FakeNews(rundown)
+    news.queue.append(rundown.clusters[0])
+    play = Playout(cfg, news, NOW)
+    total = b""
+    for _ in range(fps * 4):
+        play.next_frame()
+        total += play.next_audio()
+    # Exactly 4 s of 48 kHz stereo s16le, and the sting is in it.
+    assert len(total) == 4 * sound.RATE * 4
+    assert any(total[: sound.RATE * 4])
+    assert not any(total[-4000:])     # the 2.4 s sting is over by the end
+
+
+def test_ffmpeg_args_have_the_effects_input():
+    from pathlib import Path
+
+    args = ffmpeg_args(Config(), Path("/m.txt"), fx_input="pipe:9")
+    assert "pipe:9" in args and "s16le" in args
+    graph = args[args.index("-filter_complex") + 1]
+    assert "sidechaincompress" in graph and "anullsrc" not in " ".join(args)

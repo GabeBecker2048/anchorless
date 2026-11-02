@@ -32,7 +32,8 @@ async def write_preview(cfg: Config, out: Path, seconds: float, breaking: bool) 
 
     def produce() -> None:
         for _ in range(frames):
-            enc.write_blocking(play.next_frame())
+            frame = play.next_frame()
+            enc.write_blocking(frame, play.next_audio())
 
     try:
         await asyncio.to_thread(produce)
