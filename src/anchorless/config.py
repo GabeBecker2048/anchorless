@@ -269,12 +269,12 @@ def default_sources() -> list[SourceConfig]:
     ]
 
 
-class ThemeConfig(_Model):
-    """Shared by every channel's look (which look a channel has is its own `theme`)."""
+class CrawlConfig(_Model):
+    """The headline crawl along the bottom, on every channel."""
 
-    crawl_label: str = "HEADLINES"
+    label: str = "HEADLINES"
     # Pixels per second at 480 lines; scaled with the output height.
-    crawl_speed: float = Field(96, gt=0)
+    speed: float = Field(96, gt=0)
 
 
 class ExtraChannelConfig(_ChannelSettings):
@@ -303,7 +303,7 @@ class Config(_Model):
     rundown: RundownConfig = Field(default_factory=RundownConfig)
     breaking: BreakingConfig = Field(default_factory=BreakingConfig)
     source: list[SourceConfig] = Field(default_factory=default_sources)
-    theme: ThemeConfig = Field(default_factory=ThemeConfig)
+    crawl: CrawlConfig = Field(default_factory=CrawlConfig)
     extra_channel: list[ExtraChannelConfig] = Field(default_factory=list)
     data: DataConfig = Field(default_factory=DataConfig)
 
@@ -350,8 +350,16 @@ def _apply_env(raw: dict[str, Any], environ: dict[str, str]) -> dict[str, Any]:
 def _renamed_keys(raw: dict[str, Any]) -> None:
     """Clear errors for settings that moved, instead of "extra inputs are not permitted"."""
     moved = []
-    if "name" in (raw.get("theme") or {}):
-        moved.append('[theme] name is now [channel] theme')
+    old_theme = raw.get("theme")
+    if isinstance(old_theme, dict):
+        if "name" in old_theme:
+            moved.append('[theme] name is now [channel] theme')
+        if "crawl_label" in old_theme:
+            moved.append("[theme] crawl_label is now [crawl] label")
+        if "crawl_speed" in old_theme:
+            moved.append("[theme] crawl_speed is now [crawl] speed")
+        if not old_theme.keys() - {"name", "crawl_label", "crawl_speed"} and not moved:
+            moved.append("[theme] is now [crawl]")
     for where, ch in [("[channel]", raw.get("channel") or {})] + [
             ("[[extra_channel]]", x) for x in raw.get("extra_channel") or [] if isinstance(x, dict)]:
         if "number" in ch:

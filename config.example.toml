@@ -100,9 +100,9 @@ local_alerts = "on"           # "on", "log" (only log what would break in), or "
 sound = "auto"                # "auto", "chiptune", "news", "none", or a sound file's path
 sound_volume = 0.8            # the music ducks under it either way
 
-[theme]                       # shared by every channel's look
-crawl_label = "HEADLINES"
-crawl_speed = 96              # pixels per second at 480 lines
+[crawl]                       # the headline crawl along the bottom, on every channel
+label = "HEADLINES"
+speed = 96                    # pixels per second at 480 lines
 
 # More channels from the same news (one fetch feeds them all). The settings are
 # the same as [channel], except that name is required here. Each channel gets its

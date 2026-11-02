@@ -459,7 +459,7 @@ class StudioTheme:
         f = pfont("PressStart2P-Regular", self.px(16))
         d.text((self.L(lw // 2), self.L(194)), self.channel_name, font=f, fill=GOLD, anchor="mm")
         f = pfont("Silkscreen-Bold", self.px(16))
-        d.text((self.L(33), self.L(self.crawl_top + 13)), self.cfg.theme.crawl_label.upper(), font=f,
+        d.text((self.L(33), self.L(self.crawl_top + 13)), self.cfg.crawl.label.upper(), font=f,
                fill=INK, anchor="mm")
         return big
 

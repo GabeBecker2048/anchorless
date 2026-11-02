@@ -116,7 +116,7 @@ class ClassicTheme:
         d.rectangle([0, 0, self.w, S(2)], fill=P.gold)
         d.rectangle([0, S(2), self.crawl_label_w, self.crawl_h], fill=P.gold)
         f = font("cond-black", S(22))
-        label = self.cfg.theme.crawl_label.upper()
+        label = self.cfg.crawl.label.upper()
         lw = tracked_width(label, f, S(1))
         draw_tracked(d, ((self.crawl_label_w - lw) / 2, self._baseline(f, S(2) + (self.crawl_h - S(2)) / 2)
                          - f.getmetrics()[0]), label, f, P.navy, S(1))
