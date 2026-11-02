@@ -1,5 +1,7 @@
 # Anchorless
 
+![The Studio look: an empty pixel-art news set, with the news on the big screen behind the desk](docs/studio.png)
+
 **News without the anchor.** Anchorless turns news headlines into a 24/7 TV
 channel: an empty pixel-art news set, where the news plays on the big screen
 behind a desk nobody sits at. There is a headline crawl, a clock, background
