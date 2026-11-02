@@ -155,7 +155,7 @@ function renderSections() {
       };
       const right = el("div", {}, input,
         f.help ? el("div", { class: "h" }, f.help) : null,
-        f.locked ? el("div", { class: "lock" }, f.locked === "environment" ? "SET BY THE ENVIRONMENT - CHANGE IT THERE" : "SET IN THE FILE (A SOUND FILE) - CHANGE IT THERE") : null);
+        f.locked ? el("div", { class: "lock" }, f.lock_note || (f.locked === "environment" ? "SET BY THE ENVIRONMENT - CHANGE IT THERE" : "SET IN THE FILE - CHANGE IT THERE")) : null);
       card.append(el("div", { class: "field" },
         el("label", { class: "l" }, f.label, f.applies === "restart" ? el("span", { class: "rs", title: "Applying this restarts the channels' streams" }, "↻") : null),
         right));

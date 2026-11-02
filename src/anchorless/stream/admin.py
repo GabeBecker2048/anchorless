@@ -83,12 +83,14 @@ class Admin:
         return bool(trusted) and _in(request.remote or "", trusted) and \
             request.headers.get("X-Forwarded-Proto", "").lower() == "https"
 
+    def https_ok(self, request: web.Request, required: bool) -> bool:
+        """Fine unless https is required and this is plain http from another machine."""
+        return (not required or self.is_https(request)
+                or _in(self.client_ip(request), ["127.0.0.0/8", "::1/128"]))
+
     def _require_https(self, request: web.Request) -> None:
-        if not self.cfg.admin.require_https or self.is_https(request):
-            return
-        if _in(self.client_ip(request), ["127.0.0.0/8", "::1/128"]):
-            return
-        raise web.HTTPForbidden(text='{"error": "https required"}', content_type="application/json")
+        if not self.https_ok(request, self.cfg.admin.require_https):
+            raise web.HTTPForbidden(text='{"error": "https required"}', content_type="application/json")
 
     def _key(self) -> bytes:
         if self._secret is None:

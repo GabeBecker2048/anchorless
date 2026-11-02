@@ -79,18 +79,32 @@ SECTIONS: list[tuple[str, str, list[tuple[str, str, str, str]]]] = [
         ("channel.guide_slot_minutes", "Guide block (minutes)", "Blocks start on the hour. 1440 = one per day.", "live"),
         ("channel.timezone", "Time zone", "For the on-screen clock and the guide (e.g. America/Chicago).", "live"),
     ]),
+    ("viewers", "Viewers", [
+        ("stream.max_sessions", "Channels on at once", "Each channel being watched costs ~30% of a CPU core; "
+         "viewers of a channel that is already on don't count. -1 = no limit, 0 = nobody can watch.", "live"),
+        ("stream.max_viewers", "Viewers at once", "All channels together: TV, web page and iPhones. "
+         "-1 = no limit, 0 = nobody can watch.", "live"),
+    ]),
+    ("https", "https", [
+        ("web.require_https", "Viewer page needs https", "Suggested: on, if you have an https address "
+         "(a reverse proxy). TV tuners are not affected: they always use plain http.", "live"),
+        ("admin.require_https", "Settings page needs https", "Suggested: on (the default) - plain http "
+         "would send your password unencrypted.", "file"),
+    ]),
     ("feeds", "Feeds", [
         ("feeds.builtin", "Built-in feeds", "The national and world outlets that come with Anchorless.", "live"),
     ]),
 ]
-SCALAR_KEYS = {key: applies for _, _, fields in SECTIONS for key, _, _, applies in fields}
+# Shown on the page but changed only in the file: the settings page can't switch off its own protection.
+SCALAR_KEYS = {key: applies for _, _, fields in SECTIONS for key, _, _, applies in fields if applies != "file"}
+FILE_LOCK_NOTE = "CHANGE IT IN THE FILE - THE SETTINGS PAGE CAN'T TURN OFF ITS OWN PROTECTION"
 CHANNEL_FIELDS = ["theme", "name", "show_on", "channel_number"]
 # Shown on the page, changed only in the file (paths, the encoder, the server, the login).
 FILE_ONLY = {
-    "video": None, "stream": None, "data": None,
+    "video": None, "stream": ["host", "port", "lead_seconds", "idle_seconds"], "data": None,
     "audio": ["music_dir", "bitrate"],
     "location": ["sources_file", "city"],
-    "admin": ["allow_from", "trusted_proxies", "session_days", "require_https"],
+    "admin": ["allow_from", "trusted_proxies", "session_days"],
     "feeds": ["allow_private"],
 }
 
@@ -270,10 +284,13 @@ class Settings:
                 section, field = key.split(".")
                 value = _get(cfg, key)
                 locked = "environment" if (section, field) in self.locked else None
+                note = None
                 if key == "breaking.sound" and value not in SOUNDS:
-                    locked = "file"          # a sound file path: change it in the file
+                    locked, note = "file", "SET IN THE FILE (A SOUND FILE) - CHANGE IT THERE"
+                if applies == "file":
+                    locked, note = "file", FILE_LOCK_NOTE
                 out.append({"key": key, "label": label, "help": help_, "applies": applies,
-                            "value": value, "locked": locked, **_schema(Config, key)})
+                            "value": value, "locked": locked, "lock_note": note, **_schema(Config, key)})
             sections.append({"id": sid, "title": title, "fields": out})
         return {
             "version": files.version,

@@ -155,6 +155,12 @@ class StreamConfig(_Model):
     lead_seconds: float = Field(10.0, ge=0, le=30)
     # Stop encoding this long after the last viewer leaves.
     idle_seconds: float = Field(60.0, ge=0)
+    # Channels drawing and encoding at once (each one watched costs ~30% of a CPU
+    # core). Viewers joining a channel that is already on don't count. -1 = no
+    # limit; 0 = channels stay listed but nobody can watch (for testing).
+    max_sessions: int = Field(2, ge=-1)
+    # Viewers at once, all channels together (TV, web page, iPhone). -1 = no limit; 0 = nobody.
+    max_viewers: int = Field(-1, ge=-1)
 
 
 class SegmentConfig(_Model):
@@ -294,6 +300,15 @@ class DataConfig(_Model):
     dir: str = "data"
 
 
+class WebConfig(_Model):
+    """The viewer page (/ and its files). The TV side - /live.ts, /hls/, /playlist.m3u,
+    /guide.xml - always works over plain http: TV tuners such as Jellyfin connect that way."""
+
+    # true: the viewer page only over https (a TLS connection, or a trusted proxy's
+    # X-Forwarded-Proto). Suggested whenever you have https - for the settings page too.
+    require_https: bool = False
+
+
 class FeedsConfig(_Model):
     """Which feeds run: the built-in list, plus [[source]] entries, plus local feeds."""
 
@@ -352,7 +367,7 @@ class AdminConfig(_Model):
     session_days: float = Field(30, gt=0, le=365)
     # Only log in over https (from a trusted proxy's X-Forwarded-Proto, or a TLS
     # connection) - plain http would send the password unencrypted. This machine
-    # itself (localhost) is always allowed.
+    # itself (localhost) is always allowed. Suggested: on, and [web] require_https too.
     require_https: bool = True
 
     @field_validator("allow_from", "trusted_proxies")
@@ -380,6 +395,7 @@ class Config(_Model):
     extra_channel: list[ExtraChannelConfig] = Field(default_factory=list)
     feeds: FeedsConfig = Field(default_factory=FeedsConfig)
     data: DataConfig = Field(default_factory=DataConfig)
+    web: WebConfig = Field(default_factory=WebConfig)
     admin: AdminConfig = Field(default_factory=AdminConfig)
 
     @model_validator(mode="after")

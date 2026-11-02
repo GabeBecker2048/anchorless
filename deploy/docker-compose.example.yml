@@ -27,5 +27,10 @@ services:
       - "992"                      # the host's render group id: getent group render
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
+    # The program itself can't be changed while it runs: Anchorless only ever writes
+    # to /data, /config (the settings page) and /tmp (ffmpeg's music list).
+    read_only: true
+    tmpfs:
+      - /tmp
     mem_limit: 512m
     cpus: 1.0
