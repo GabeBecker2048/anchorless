@@ -342,7 +342,10 @@ class StudioTheme:
                             fill=CHAIR_HI)                                              # lit edge
         for y0 in (138, 152):                                                           # cushion seams
             d.rounded_rectangle([cx - 11, y0, cx + 11, y0 + 11], radius=4, outline=CHAIR_DARK)
-        for ax in (cx - 25, cx + 15):                                                   # armrests
+        # Armrests: each overhangs the back's outline (incl. its thickness, to cx + 22)
+        # by 8 and overlaps it by 10. The right one starts further in because its
+        # isometric top runs 8 to the right.
+        for ax in (cx - 25, cx + 12):
             _box(d, ax + 3, 161, ax + 6, 176, INK)                                      # post
             _box(d, ax + 4, 161, ax + 5, 176, (70, 70, 90))
             iso_box(d, ax, 157, 10, 4, 4, CHAIR_HI, CHAIR_DARK, CHAIR_TOP)             # pad
