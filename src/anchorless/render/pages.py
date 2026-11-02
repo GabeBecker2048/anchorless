@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 from ..config import Config
 from ..models import Cluster
 from .theme import (
+    DARK_PALETTE,
     PALETTE,
     draw_lines,
     draw_tracked,
@@ -24,8 +25,6 @@ from .theme import (
     tracked_width,
     wrap,
 )
-
-P = PALETTE
 
 
 def ago(when: datetime | None, now: datetime) -> str:
@@ -48,8 +47,10 @@ def outlets_line(cluster: Cluster, limit: int = 3) -> str:
 
 class ClassicTheme:
     kind = "classic"
-    def __init__(self, cfg: Config, channel_name: str | None = None) -> None:
+
+    def __init__(self, cfg: Config, channel_name: str | None = None, dark: bool = False) -> None:
         self.cfg = cfg
+        self.P = DARK_PALETTE if dark else PALETTE
         self.channel_name = (channel_name or cfg.channel.name).upper()
         self.w = cfg.video.width
         self.h = cfg.video.height
@@ -71,8 +72,11 @@ class ClassicTheme:
 
     # --- pieces drawn once ---
 
-    def _header(self, label: str, logo: tuple = P.red, bar: tuple = P.gold,
-                top: tuple = P.header_top, bottom: tuple = P.header_bottom) -> Image.Image:
+    def _header(self, label: str, logo: tuple | None = None, bar: tuple | None = None,
+                top: tuple | None = None, bottom: tuple | None = None) -> Image.Image:
+        P = self.P
+        logo, bar = logo or P.red, bar or P.gold
+        top, bottom = top or P.header_top, bottom or P.header_bottom
         S = self.px
         img = gradient((self.w, self.header_h), top, bottom)
         d = ImageDraw.Draw(img)
@@ -100,6 +104,7 @@ class ClassicTheme:
 
     @cached_property
     def body_bg(self) -> Image.Image:
+        P = self.P
         size = (self.w, self.crawl_y - self.header_h)
         return stripes(gradient(size, P.body_top, P.body_bottom), self.px(7), 9)
 
@@ -110,6 +115,7 @@ class ClassicTheme:
 
     @cached_property
     def crawl_bg(self) -> Image.Image:
+        P = self.P
         S = self.px
         img = Image.new("RGB", (self.w, self.crawl_h), P.crawl_bg)
         d = ImageDraw.Draw(img)
@@ -138,6 +144,7 @@ class ClassicTheme:
 
     def story_page(self, cluster: Cluster, segment: str, index: int, total: int, now: datetime,
                    breaking: bool = False) -> Image.Image:
+        P = self.P
         S = self.px
         header = self._header(segment if not breaking else "BREAKING NEWS",
                               logo=P.red if not breaking else P.white,
@@ -197,11 +204,12 @@ class ClassicTheme:
             px0 = self.w - self.margin - (total - 1) * gap
             for i in range(total):
                 cx, cy = px0 + i * gap, y + S(9)
-                fill = P.gold if i == index - 1 else (70, 104, 170)
+                fill = P.gold if i == index - 1 else P.dot
                 d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill)
         return img
 
     def intro_page(self, segment: str, clusters: list[Cluster], now: datetime | None = None) -> Image.Image:
+        P = self.P
         S = self.px
         img, d = self._frame(self._header(""), self.body_bg)
         x = self.margin
@@ -233,6 +241,7 @@ class ClassicTheme:
 
     def breaking_title(self, flash: bool, now: datetime | None = None) -> Image.Image:
         """The full-screen "BREAKING NEWS" card; ``flash`` swaps the colors."""
+        P = self.P
         S = self.px
         header = self._header("", logo=P.white, bar=P.red)
         hd = ImageDraw.Draw(header)
@@ -255,6 +264,7 @@ class ClassicTheme:
         return img
 
     def empty_page(self, now: datetime | None = None) -> Image.Image:
+        P = self.P
         S = self.px
         img, d = self._frame(self._header("STAND BY"), self.body_bg)
         cy = (self.header_h + self.crawl_y) / 2
@@ -268,6 +278,7 @@ class ClassicTheme:
     # --- the parts that change every frame ---
 
     def crawl_style(self) -> dict:
+        P = self.P
         S = self.px
         return {"font": font("semibold", S(21)), "tag_font": font("cond-black", S(16)), "bg": P.crawl_bg,
                 "text": P.white, "sep": P.red, "tag_bg": P.red, "tag_text": P.white}
@@ -279,6 +290,7 @@ class ClassicTheme:
         return canvas
 
     def clock(self, now: datetime) -> Image.Image:
+        P = self.P
         S = self.px
         x0, y0, x1, y1 = self.clock_box
         img = gradient((x1 - x0, self.header_h), P.header_top, P.header_bottom).crop((0, 0, x1 - x0, y1 - y0))

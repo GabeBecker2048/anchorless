@@ -34,17 +34,17 @@ input.dirty, select.dirty, textarea.dirty { outline: 2px solid var(--gold); outl
 .switch input:checked + span::before { transform: translateX(20px); background: #fff; }
 .switch input.dirty + span { outline: 2px solid var(--gold); }
 .switch input:disabled + span { opacity: .5; cursor: default; }
-html[data-look="classic"] .switch span, html[data-look="classic"] .switch span::before { border-radius: 999px; }
-html[data-look="classic"] input[type=text], html[data-look="classic"] input[type=number], html[data-look="classic"] input[type=url],
-html[data-look="classic"] input[type=password], html[data-look="classic"] textarea, html[data-look="classic"] .field select,
-html[data-look="classic"] .row select { border-radius: 8px; background: #fff; }
+html[data-look^="classic"] .switch span, html[data-look^="classic"] .switch span::before { border-radius: 999px; }
+html[data-look^="classic"] input[type=text], html[data-look^="classic"] input[type=number], html[data-look^="classic"] input[type=url],
+html[data-look^="classic"] input[type=password], html[data-look^="classic"] textarea, html[data-look^="classic"] .field select,
+html[data-look^="classic"] .row select { border-radius: 8px; background: #fff; }
 
 .btn { font: 700 12px var(--pixel); letter-spacing: .5px; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); padding: 7px 12px; cursor: pointer; }
 .btn:hover { border-color: var(--gold); }
 .btn.primary { background: var(--red); color: #fff; border-color: var(--red); }
 .btn.small { padding: 4px 8px; font-size: 11px; }
 .btn:disabled { opacity: .5; cursor: default; }
-html[data-look="classic"] .btn { border-radius: 999px; font: 700 14px var(--pixel); }
+html[data-look^="classic"] .btn { border-radius: 999px; font: 700 14px var(--pixel); }
 
 .rows { display: grid; gap: 8px; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px; background: var(--panel-2); border: 1px solid var(--line); }
@@ -57,8 +57,8 @@ html[data-look="classic"] .btn { border-radius: 999px; font: 700 14px var(--pixe
 .row .tag.warn { color: var(--gold); }
 .row .tag.bad { color: var(--red); }
 .row .k { font: 11px var(--pixel); color: var(--muted); }
-html[data-look="classic"] .row { border-radius: 10px; border: 0; }
-html[data-look="classic"] .row .tag { background: #fff; border-radius: 999px; padding: 3px 9px; font: 700 12px var(--pixel); letter-spacing: .05em; }
+html[data-look^="classic"] .row { border-radius: 10px; border: 0; }
+html[data-look^="classic"] .row .tag { background: #fff; border-radius: 999px; padding: 3px 9px; font: 700 12px var(--pixel); letter-spacing: .05em; }
 .feed-row { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); }
 .feed-row:first-child { border-top: 0; }
 .feed-row .u { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
@@ -79,11 +79,17 @@ dl.ro dd { margin: 0; overflow-wrap: anywhere; font-family: ui-monospace, monosp
 .savebar .sum { flex: 1 1 260px; font-size: 13.5px; }
 .savebar .sum b { font: 700 13px var(--pixel); color: var(--gold); }
 .savebar .apply { font-size: 13px; display: grid; gap: 4px; }
-html[data-look="classic"] .savebar { border-radius: 14px; border-width: 0; box-shadow: 0 -6px 30px rgba(14,30,70,.18); }
+html[data-look^="classic"] .savebar { border-radius: 14px; border-width: 0; box-shadow: 0 -6px 30px rgba(14,30,70,.18); }
+html[data-look="classic-dark"] input[type=text], html[data-look="classic-dark"] input[type=number],
+html[data-look="classic-dark"] input[type=url], html[data-look="classic-dark"] input[type=password],
+html[data-look="classic-dark"] textarea, html[data-look="classic-dark"] .field select,
+html[data-look="classic-dark"] .row select { background: var(--bg); }
+html[data-look="classic-dark"] .row .tag { background: var(--bg); }
+html[data-look="classic-dark"] .savebar { box-shadow: 0 -6px 30px rgba(0, 0, 0, .5); }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--panel-2); border: 2px solid var(--green);
   padding: 10px 16px; font-size: 14px; z-index: 9; display: none; max-width: 90vw; }
 .toast.err { border-color: var(--red); }
-html[data-look="classic"] .toast { border-radius: 10px; }
+html[data-look^="classic"] .toast { border-radius: 10px; }
 .login { max-width: 380px; margin: 40px auto; }
 .login form { display: grid; gap: 10px; }
 .msg { font-size: 14px; }
@@ -103,7 +109,9 @@ html[data-look="classic"] .toast { border-radius: 10px; }
   <div id="main" hidden>
     <p class="page-note" id="where"></p>
     <div id="banner"></div>
-    <div class="card"><h2>CHANNELS</h2><div class="rows" id="channels"></div>
+    <div class="card"><h2>CHANNELS</h2>
+      <p class="page-note" id="look-note"></p>
+      <div class="rows" id="channels"></div>
       <div style="margin-top:10px"><button class="btn small" id="add-channel">+ ADD CHANNEL</button></div></div>
     <div id="sections"></div>
     <div class="card"><h2>FILE ONLY <span class="sub">change these in the file, then they apply on restart</span></h2><div id="fileonly"></div></div>
@@ -206,6 +214,7 @@ function render() {
     ". You can still edit the file by hand: changes there show up here within a few seconds.");
   $("banner").replaceChildren(...(cur.config_error ? [el("div", { class: "banner" },
     "The config file was changed by hand and is not valid, so Anchorless is still running the last good version:\n" + cur.config_error)] : []));
+  renderLookNote();
   renderChannels();
   renderSections();
   renderFileOnly();
@@ -278,6 +287,12 @@ function renderSections() {
 }
 
 // ---------- channels ----------
+const LOOKS = { "studio": "Studio", "classic": "Classic", "classic-dark": "Classic dark" };
+function renderLookNote() {
+  const main = cur.channels[0];
+  $("look-note").replaceChildren("These web pages take the ", el("b", {}, "main channel's"), " look - now ",
+    el("b", {}, LOOKS[main.theme] || main.theme), " (", main.name, "). Change the main channel's theme below to change it; the viewer page follows whichever channel you watch.");
+}
 function liveOf(id) { return orig.live[id] || { viewers: 0, running: false, pending: false }; }
 
 function renderChannels() {
@@ -287,7 +302,8 @@ function renderChannels() {
     const o = orig.channels.find((x) => x.id === ch.id && !ch._new);
     const row = el("div", { class: "row" + (ch._removed ? " removed" : "") + (ch._new ? " new" : "") });
     const dis = (f) => ch._removed || (ch.locked || []).includes(f);
-    const theme = el("select", { disabled: dis("theme") }, cur.themes.map((t) => el("option", { value: t }, t)));
+    const theme = el("select", { disabled: dis("theme"), title: ch.main ? "Also the look of these web pages" : "" },
+      cur.themes.map((t) => el("option", { value: t }, LOOKS[t] || t)));
     theme.value = ch.theme;
     const name = el("input", { type: "text", class: "grow", disabled: dis("name"), placeholder: "Name" });
     name.value = ch.name || "";
@@ -303,7 +319,7 @@ function renderChannels() {
       }
       updateSaveBar();
     };
-    theme.addEventListener("change", () => { ch.theme = theme.value; if (ch.main) document.documentElement.dataset.look = ch.theme; markAll(); });
+    theme.addEventListener("change", () => { ch.theme = theme.value; if (ch.main) { document.documentElement.dataset.look = ch.theme; renderLookNote(); } markAll(); });
     name.addEventListener("input", () => { ch.name = name.value; markAll(); });
     show.addEventListener("change", () => { ch.show_on = show.value; num.disabled = show.value === "web" || dis("channel_number");
                                             if (show.value !== "web" && !num.value && o?.channel_number) num.value = ch.channel_number = o.channel_number; markAll(); });
