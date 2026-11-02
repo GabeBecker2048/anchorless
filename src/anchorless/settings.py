@@ -19,6 +19,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
+import json
+import logging
 import os
 import tempfile
 from dataclasses import dataclass
@@ -39,6 +41,8 @@ from .config import (
     resolve_local_path,
 )
 from .render.theme import resolve_look
+
+log = logging.getLogger(__name__)
 
 SOUNDS = ["auto", "chiptune", "news", "none"]
 
@@ -318,6 +322,7 @@ class Settings:
                 values = {k: values[k] for k in keys}
             out[section] = values
         out["admin"]["password"] = "set" if cfg.admin.password else "not set"
+        out["admin"]["password_hash"] = "set" if cfg.admin.password_hash else "not set"
         out["breaking"] = {"sound file": cfg.breaking.sound} if cfg.breaking.sound not in SOUNDS else {}
         return {k: v for k, v in out.items() if v}
 
@@ -516,3 +521,83 @@ class Settings:
         if "category" in value:
             _set(entry, "category", value["category"] if value["category"] not in ("", "general") else None)
         return local_doc
+
+
+# --- what changed, and a record of it ---
+
+def _feed_text(s: Any) -> str:
+    return f"{s.name} ({s.scope}{', ' + s.category if s.category != 'general' else ''}){'' if s.enabled else ', off'}"
+
+
+def _flat(cfg: Config) -> dict[str, Any]:
+    """Every setting as "where: value", readable in a change list."""
+    out: dict[str, Any] = {}
+    data = cfg.model_dump(mode="json")
+    for section, value in data.items():
+        if section in ("source", "extra_channel"):
+            continue
+        if isinstance(value, dict):
+            for key, v in value.items():
+                if (section, key) == ("feeds", "disabled"):
+                    continue        # shown per feed ("feed <url>: ... off") instead
+                if section == "admin" and key in ("password", "password_hash"):
+                    v = hashlib.sha256(str(v).encode()).hexdigest() if v else None   # changed or not, never the value
+                if section == "rundown" and key == "segment":
+                    v = ", ".join(f"{s['name']} {s['stories']}" for s in v)
+                out[f"{section}.{key}"] = v
+    for ch in cfg.extra_channel:
+        for f in CHANNEL_FIELDS:
+            out[f"channel {ch.id}.{f}"] = getattr(ch, f)
+    for s in cfg.source:
+        out[f"feed {s.url}"] = _feed_text(s)
+    return out
+
+
+def diff_configs(old: Config, new: Config) -> list[dict]:
+    """[{key, old, new}] for every setting that differs (password values never included)."""
+    a, b = _flat(old), _flat(new)
+    out = []
+    for key in sorted(a.keys() | b.keys()):
+        if a.get(key) == b.get(key):
+            continue
+        if key in ("admin.password", "admin.password_hash"):
+            out.append({"key": key, "old": "set" if a.get(key) else "not set",
+                        "new": "changed" if a.get(key) and b.get(key) else ("set" if b.get(key) else "not set")})
+        else:
+            out.append({"key": key, "old": a.get(key), "new": b.get(key)})
+    return out
+
+
+class History:
+    """settings-history.jsonl in the data folder: the last few hundred saves and hand edits."""
+
+    KEEP = 500
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def add(self, source: str, changes: list[dict]) -> None:
+        if not changes:
+            return
+        line = json.dumps({"when": datetime.now(UTC).isoformat(timespec="seconds"), "source": source,
+                           "changes": changes}, default=str)
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+            if len(lines) > self.KEEP + 100:            # trim now and then, not on every save
+                _atomic_write(self.path, "\n".join(lines[-self.KEEP:]) + "\n")
+        except OSError as err:
+            log.warning("could not record settings history: %s", err)
+
+    def recent(self, n: int = 20) -> list[dict]:
+        try:
+            lines = self.path.read_text(encoding="utf-8").splitlines()[-n:]
+        except FileNotFoundError:
+            return []
+        out = []
+        for line in reversed(lines):
+            with contextlib.suppress(ValueError):
+                out.append(json.loads(line))
+        return out

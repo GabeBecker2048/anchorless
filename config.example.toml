@@ -144,7 +144,9 @@ allow_private = false         # true: allow feeds on your own network. Off, ever
 # category = "general"        # "business" feeds the BUSINESS segment
 
 # The settings page (/settings) edits this file. It is off until a password is
-# set - best from the environment: ANCHORLESS__ADMIN__PASSWORD=<long random>.
+# set (12+ characters): either from the environment, ANCHORLESS__ADMIN__PASSWORD=...,
+# or as a hash here - run `anchorless hash-password` and paste its line:
+# password_hash = "scrypt$15$8$1$...$..."
 # The file must be writable by Anchorless (in Docker: mount its folder, not the file).
 [admin]
 allow_from = ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",

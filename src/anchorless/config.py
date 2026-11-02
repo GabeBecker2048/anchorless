@@ -312,10 +312,39 @@ def _private_ranges() -> list[str]:
 
 
 class AdminConfig(_Model):
-    """The settings page (/settings). Off unless a password is set - best from the
-    environment: ANCHORLESS__ADMIN__PASSWORD."""
+    """The settings page (/settings). Off unless a password is set: either the
+    password itself (best from the environment: ANCHORLESS__ADMIN__PASSWORD) or its
+    hash from `anchorless hash-password` (safe to keep in this file)."""
 
     password: str | None = None
+    password_hash: str | None = None
+
+    @field_validator("password")
+    @classmethod
+    def _long_enough(cls, v: str | None) -> str | None:
+        from .passwords import MIN_LENGTH
+        if v is not None and len(v) < MIN_LENGTH:
+            raise ValueError(f"the settings password must be at least {MIN_LENGTH} characters")
+        return v
+
+    @field_validator("password_hash")
+    @classmethod
+    def _valid_hash(cls, v: str | None) -> str | None:
+        if v is not None:
+            from .passwords import parse_hash
+            parse_hash(v)
+        return v
+
+    @model_validator(mode="after")
+    def _one_secret(self):
+        if self.password and self.password_hash:
+            raise ValueError("set password or password_hash, not both")
+        return self
+
+    @property
+    def secret(self) -> str:
+        """What sessions are signed with: changing it logs everyone out."""
+        return self.password_hash or self.password or ""
     # Who may open the settings page at all (CIDR ranges). Default: this machine and private networks.
     allow_from: list[str] = Field(default_factory=_private_ranges)
     # Reverse proxies whose X-Forwarded-For is believed (e.g. Caddy). Empty: none.
