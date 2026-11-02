@@ -244,3 +244,31 @@ def test_ffmpeg_args_have_the_effects_input():
     assert "pipe:9" in args and "s16le" in args
     graph = args[args.index("-filter_complex") + 1]
     assert "sidechaincompress" in graph and "anullsrc" not in " ".join(args)
+
+
+def test_web_page_status_and_poster(cfg, stories):
+    import asyncio
+
+    from aiohttp.test_utils import TestClient, TestServer
+
+    from anchorless.pipeline import all_clusters, build_rundown
+    from anchorless.stream.server import make_app
+
+    async def run():
+        app = make_app(cfg)
+        room = app["station"].newsroom
+        room.rundown = build_rundown(all_clusters(stories, cfg, NOW), cfg, NOW)
+        async with TestClient(TestServer(app)) as client:
+            page = await client.get("/")
+            assert page.status == 200 and "mpegts.min.js" in await page.text()
+            js = await client.get("/static/mpegts.min.js")
+            assert js.status == 200
+            st = await (await client.get("/api/status")).json()
+            assert st["channels"][0]["stream"] == "/live.ts" and not st["channels"][0]["running"]
+            assert st["rundown"] and st["rundown"][0]["stories"][0]["outlets"]
+            assert {f["host"] for f in st["feeds"]} == {"a.example", "b.example"}   # hosts, not full URLs
+            poster = await client.get(f"/poster/{cfg.channel.id}.png")
+            assert poster.status == 200 and (await poster.read())[:4] == b"\x89PNG"
+            assert (await client.get("/poster/nope.png")).status == 404
+
+    asyncio.run(run())
