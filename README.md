@@ -1,6 +1,8 @@
 # Anchorless
 
-![The Studio look: an empty pixel-art news set, with the news on the big screen behind the desk](docs/studio.png)
+![The Studio look: an empty pixel-art news set. Headlines play on the big screen behind the desk, then a breaking-news alert turns the studio red](docs/studio.gif)
+
+<sub>Recorded from the real playout (sped up: pages normally stay 12 s). The headlines and outlets are made up.</sub>
 
 **News without the anchor.** Anchorless turns news headlines into a 24/7 TV
 channel: an empty pixel-art news set, where the news plays on the big screen
