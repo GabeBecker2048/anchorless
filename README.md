@@ -149,6 +149,7 @@ core. The viewer limits below are how you cap that. Before you open it up:
 - [ ] **Harden the container** as in `deploy/docker-compose.example.yml`: a
       non-root user, `read_only: true`, `cap_drop: [ALL]`,
       `no-new-privileges`, and memory and CPU limits.
+- [ ] **Know how to report a problem:** see [SECURITY.md](SECURITY.md).
 - [ ] **Keep it updated:** rebuild the image now and then
       (`docker compose build --pull`) for security fixes in the base image,
       ffmpeg and the Python libraries.
