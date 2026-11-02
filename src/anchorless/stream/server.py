@@ -295,6 +295,7 @@ class Channel:
         hls = self.hls_viewers()
         return {
             "name": self.info.name, "number": self.info.number, "theme": self.info.theme,
+            "show_on": self.info.show_on,
             "running": bool(s),
             "viewers": len(self.clients) + hls,
             "hls_viewers": hls,
@@ -381,7 +382,7 @@ def make_app(cfg: Config) -> web.Application:
 
 def serve(cfg: Config) -> int:
     log.info("anchorless %s on port %d: %s", __version__, cfg.stream.port,
-             ", ".join(f"{c.number} {c.name} ({c.theme})" for c in channel_list(cfg)))
+             ", ".join(f"{c.label} ({c.theme}, {c.show_on})" for c in channel_list(cfg)))
     web.run_app(make_app(cfg), host=cfg.stream.host, port=cfg.stream.port, access_log=None,
                 print=None, handle_signals=True)
     return 0

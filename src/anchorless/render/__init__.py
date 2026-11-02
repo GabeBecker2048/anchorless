@@ -8,7 +8,7 @@ THEMES = ("studio", "classic")
 
 
 def make_theme(cfg: Config, name: str | None = None, channel_name: str | None = None):
-    name = name or cfg.theme.name
+    name = name or cfg.channel.theme
     if name == "classic":
         from .pages import ClassicTheme
 

@@ -39,6 +39,7 @@ the encoder like any other viewer. (The player is
 
 ```sh
 uv sync
+cp config.example.toml config.toml # [channel] theme, show_on and channel_number are required
 uv run anchorless fetch            # print the current rundown
 uv run anchorless render -o out    # PNG stills of every page type
 uv run anchorless preview -o out/preview.mp4 --seconds 60 --breaking
@@ -60,12 +61,23 @@ every viewer gets Anchorless's own head start.
 
 ## Themes and channels
 
-- `studio` (default): the empty pixel-art news set.
+- `studio`: the empty pixel-art news set.
 - `classic`: full-screen cable-news pages.
 
-One server can run several channels from the same news, each with its own
-stream: add `[[extra_channel]]` entries (see the example config). They all
-appear in the one playlist and guide.
+Every channel, `[channel]` and any number of `[[extra_channel]]`s, has the
+same settings:
+
+```toml
+[channel]
+theme = "studio"       # required
+name = "NEWS"          # optional for [channel] (default "NEWS"), required for extra channels
+show_on = "both"       # required: "both", "tv" (playlist + guide only) or "web" (web page only)
+channel_number = 101   # required for "both" and "tv"; ignored for "web"
+```
+
+They all share one news fetch; each gets its own stream, drawn and encoded only
+while someone watches it. `show_on` decides where a channel is *listed*: any
+channel's stream URL still plays for whoever opens it.
 
 ## Configuration
 

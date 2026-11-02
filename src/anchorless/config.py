@@ -1,6 +1,7 @@
 """The configuration: one TOML file, validated by pydantic.
 
-Every setting has a default, so an empty file (or none) gives a working channel.
+Almost every setting has a default. A [channel] section with a theme, show_on and
+(for a TV channel) a channel_number is all a working file needs.
 Any value can also be overridden from the environment with
 ``ANCHORLESS__<SECTION>__<KEY>``, e.g. ``ANCHORLESS__LOCATION__CITY=Springfield``.
 That keeps personal details such as the location out of the config file, so it
@@ -26,10 +27,57 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class ChannelConfig(_Model):
+ShowOn = Literal["both", "tv", "web"]
+_NUMBER = re.compile(r"^\d+(\.\d+)?$")
+
+
+class _ChannelSettings(_Model):
+    """What [channel] and every [[extra_channel]] have in common."""
+
+    theme: Literal["studio", "classic"]
+    # "both": a TV channel (in /playlist.m3u and /guide.xml) and on the web page;
+    # "tv": TV only; "web": web page only. This is where a channel is listed - any
+    # channel's stream URL still plays for whoever opens it.
+    show_on: ShowOn
+    # Required for "both" and "tv" (e.g. 2, 101 or 2.1), ignored for "web".
+    channel_number: str | None = None
+    # Stable id for TV guides (tvg-id) and the stream URL. Defaults from the name.
+    id: str | None = None
+
+    @field_validator("channel_number", mode="before")
+    @classmethod
+    def _number_as_text(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        text = str(v).strip()
+        if not _NUMBER.match(text):
+            raise ValueError(f"channel_number must be a number like 2, 101 or 2.1, not {v!r}")
+        return text
+
+    @model_validator(mode="after")
+    def _number_when_on_tv(self):
+        if self.show_on == "web":
+            self.channel_number = None              # ignored for web-only channels
+        elif self.channel_number is None:
+            raise ValueError(f'channel_number is required when show_on = "{self.show_on}"')
+        return self
+
+    @property
+    def on_tv(self) -> bool:
+        return self.show_on in ("both", "tv")
+
+    @property
+    def on_web(self) -> bool:
+        return self.show_on in ("both", "web")
+
+
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "channel"
+
+
+class ChannelConfig(_ChannelSettings):
     name: str = "NEWS"
-    number: str = "98"
-    id: str = "anchorless.news"
+    id: str | None = "anchorless.news"
     timezone: str = "America/Chicago"
     guide_title: str = "Anchorless News"
     guide_description: str = "Around-the-clock headlines from national and world news outlets."
@@ -43,11 +91,6 @@ class ChannelConfig(_Model):
         if 1440 % v:
             raise ValueError("guide_slot_minutes must divide a day evenly (15, 30, 60, ...)")
         return v
-
-    @field_validator("number", mode="before")
-    @classmethod
-    def _number_as_text(cls, v: Any) -> str:
-        return str(v)
 
     @field_validator("timezone")
     @classmethod
@@ -227,27 +270,24 @@ def default_sources() -> list[SourceConfig]:
 
 
 class ThemeConfig(_Model):
-    name: Literal["studio", "classic"] = "studio"
+    """Shared by every channel's look (which look a channel has is its own `theme`)."""
+
     crawl_label: str = "HEADLINES"
     # Pixels per second at 480 lines; scaled with the output height.
     crawl_speed: float = Field(96, gt=0)
 
 
-class ExtraChannelConfig(_Model):
-    """Another channel from the same news, e.g. the same rundown in a different theme."""
+class ExtraChannelConfig(_ChannelSettings):
+    """Another channel from the same news: the same settings as [channel], but
+    the name is required (and the guide, timezone etc. are shared with [channel])."""
 
     name: str
-    number: str
-    id: str
-    theme: Literal["studio", "classic"] = "classic"
-    # false: only on the web page, left out of /playlist.m3u and /guide.xml (so a
-    # TV tuner never picks it up). For trying a look without adding a TV channel.
-    in_guide: bool = True
 
-    @field_validator("number", mode="before")
-    @classmethod
-    def _number_as_text(cls, v: Any) -> str:
-        return str(v)
+    @model_validator(mode="after")
+    def _default_id(self):
+        if not self.id:
+            self.id = "anchorless." + _slug(self.name)
+        return self
 
 
 class DataConfig(_Model):
@@ -255,7 +295,7 @@ class DataConfig(_Model):
 
 
 class Config(_Model):
-    channel: ChannelConfig = Field(default_factory=ChannelConfig)
+    channel: ChannelConfig
     location: LocationConfig = Field(default_factory=LocationConfig)
     video: VideoConfig = Field(default_factory=VideoConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
@@ -271,9 +311,13 @@ class Config(_Model):
     def _has_sources(self) -> Config:
         if not any(s.enabled for s in self.source):
             raise ValueError("no enabled [[source]] entries")
-        ids = [self.channel.id] + [c.id for c in self.extra_channel]
+        channels = [self.channel, *self.extra_channel]
+        ids = [c.id for c in channels]
         if len(set(ids)) != len(ids):
-            raise ValueError("channel ids must be unique")
+            raise ValueError("channel ids must be unique (two channels have the same name? set id)")
+        numbers = [c.channel_number for c in channels if c.on_tv]
+        if len(set(numbers)) != len(numbers):
+            raise ValueError("two TV channels have the same channel_number")
         return self
 
     @property
@@ -301,6 +345,21 @@ def _apply_env(raw: dict[str, Any], environ: dict[str, str]) -> dict[str, Any]:
             raise ConfigError(f"{key}: [{section}] is not a table")
         target[field] = value
     return raw
+
+
+def _renamed_keys(raw: dict[str, Any]) -> None:
+    """Clear errors for settings that moved, instead of "extra inputs are not permitted"."""
+    moved = []
+    if "name" in (raw.get("theme") or {}):
+        moved.append('[theme] name is now [channel] theme')
+    for where, ch in [("[channel]", raw.get("channel") or {})] + [
+            ("[[extra_channel]]", x) for x in raw.get("extra_channel") or [] if isinstance(x, dict)]:
+        if "number" in ch:
+            moved.append(f"{where} number is now channel_number")
+        if "in_guide" in ch:
+            moved.append(f'{where} in_guide is now show_on ("both", "tv" or "web")')
+    if moved:
+        raise ConfigError("settings that moved: " + "; ".join(moved))
 
 
 def _local_sources(base: Path, sources_file: str) -> list[dict[str, Any]]:
@@ -333,6 +392,7 @@ def load_config(path: str | Path | None = None, environ: dict[str, str] | None =
         except tomllib.TOMLDecodeError as err:
             raise ConfigError(f"{path}: {err}") from err
     raw = _apply_env(raw, environ)
+    _renamed_keys(raw)
     sources_file = (raw.get("location") or {}).get("sources_file")
     if sources_file:
         raw["source"] = list(raw.get("source") or [s.model_dump() for s in default_sources()])

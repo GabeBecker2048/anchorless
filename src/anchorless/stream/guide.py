@@ -14,26 +14,40 @@ GUIDE_DAYS = 3
 @dataclass(frozen=True)
 class ChannelInfo:
     id: str
-    number: str
+    number: str | None    # None for a web-only channel
     name: str
     theme: str
-    path: str          # the stream's URL path
-    in_guide: bool = True   # listed in the M3U and XMLTV (false: web page only)
+    path: str             # the stream's URL path
+    show_on: str = "both"
+
+    @property
+    def on_tv(self) -> bool:
+        """Listed in /playlist.m3u and /guide.xml."""
+        return self.show_on in ("both", "tv")
+
+    @property
+    def on_web(self) -> bool:
+        """Offered on the web page."""
+        return self.show_on in ("both", "web")
+
+    @property
+    def label(self) -> str:
+        return f"{self.number} {self.name}" if self.number else self.name
 
 
 def channel_list(cfg: Config) -> list[ChannelInfo]:
     """The main channel, then any [[extra_channel]]s."""
     c = cfg.channel
-    out = [ChannelInfo(c.id, c.number, c.name, cfg.theme.name, "/live.ts")]
+    out = [ChannelInfo(c.id, c.channel_number, c.name, c.theme, "/live.ts", c.show_on)]
     for x in cfg.extra_channel:
-        out.append(ChannelInfo(x.id, x.number, x.name, x.theme, f"/live/{x.id}.ts", x.in_guide))
+        out.append(ChannelInfo(x.id, x.channel_number, x.name, x.theme, f"/live/{x.id}.ts", x.show_on))
     return out
 
 
 def playlist(cfg: Config, host: str) -> str:
     lines = ["#EXTM3U"]
     for ch in channel_list(cfg):
-        if not ch.in_guide:
+        if not ch.on_tv:
             continue
         lines.append(f'#EXTINF:-1 tvg-id="{ch.id}" tvg-chno="{ch.number}" tvg-name="{ch.name}",{ch.name}')
         lines.append(f"http://{host}{ch.path}")
@@ -70,7 +84,7 @@ def _slots(cfg: Config, now: datetime) -> list[tuple[datetime, datetime]]:
 def guide(cfg: Config, now: datetime) -> str:
     """The newscast in back-to-back blocks (see ``_slots``) on every channel."""
     c = cfg.channel
-    channels = [ch for ch in channel_list(cfg) if ch.in_guide]
+    channels = [ch for ch in channel_list(cfg) if ch.on_tv]
     slots = _slots(cfg, now)
     out = ['<?xml version="1.0" encoding="UTF-8"?>', "<tv>"]
     for ch in channels:
