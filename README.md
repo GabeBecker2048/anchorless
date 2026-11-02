@@ -79,6 +79,24 @@ They all share one news fetch; each gets its own stream, drawn and encoded only
 while someone watches it. `show_on` decides where a channel is *listed*: any
 channel's stream URL still plays for whoever opens it.
 
+## Settings page
+
+`/settings` edits the config file from a browser: channels, the rundown and its
+segments, breaking-news rules, the crawl, sound and music volume, the TV guide,
+and feeds (on/off, add, edit, with a "check feed" button). **The file stays the
+one source of truth**: a save rewrites only the lines that changed (comments and
+layout kept), so you can keep editing it by hand too - hand edits show up on the
+page within seconds. Most changes apply live; a change to a channel's look,
+name, crawl or sound restarts that channel, either right away or once nobody is
+watching. Two people saving at once can't overwrite each other: a setting
+changed since your page loaded it is reported as a conflict instead.
+
+It is **off until a password is set**: `ANCHORLESS__ADMIN__PASSWORD` in the
+environment. It is on the same port as everything else; only `/settings` and
+its API need the login (the TV tuner, guide and viewer page stay open). By
+default it only answers private networks (`[admin] allow_from`). Paths, the
+video encoder and the server settings stay file-only.
+
 ## Configuration
 
 Copy [`config.example.toml`](config.example.toml) to `config.toml`. Every

@@ -6,14 +6,19 @@
   /static/...            the page's script (mpegts.js plays MPEG-TS in the browser)
   /fonts/...             the pixel fonts the channel uses
 
-Read-only: nothing here changes the station. Watching from the page is the same
-as watching from a TV: it starts the channel's encoder, which stops a minute
-after the last viewer leaves.
+Watching from the page is the same as watching from a TV: it starts the
+channel's encoder, which stops a minute after the last viewer leaves.
+
+  /settings              the settings page (needs a password: see admin.py)
+  /api/settings          GET the settings, PATCH changes (written to the config file)
+  /api/feeds/check       try a feed URL before adding it
+  /api/login, /api/logout
 """
 
 from __future__ import annotations
 
 import io
+import logging
 import time
 from datetime import UTC, datetime
 from importlib.resources import files
@@ -21,12 +26,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
+import httpx
 from aiohttp import web
 
 from .. import __version__
+from ..config import SourceConfig
+from ..settings import SettingsError
+from ..sources.rss import USER_AGENT, parse_feed
+from .admin import Admin
 
 if TYPE_CHECKING:
     from .server import Station
+
+log = logging.getLogger(__name__)
 
 WEB_DIR = Path(str(files("anchorless") / "web"))
 FONT_DIR = Path(str(files("anchorless") / "fonts"))
@@ -115,10 +127,80 @@ class Web:
         return buf.getvalue()
 
 
+class SettingsApi:
+    def __init__(self, station: Station) -> None:
+        self.st = station
+        self.admin = Admin(station.cfg)
+
+    async def page(self, request: web.Request) -> web.Response:
+        return web.FileResponse(WEB_DIR / "settings.html", headers={"Cache-Control": "no-cache"})
+
+    def _settings(self):
+        if self.st.settings is None:
+            raise web.HTTPNotFound(text='{"error": "no config file"}', content_type="application/json")
+        return self.st.settings
+
+    async def get(self, request: web.Request) -> web.Response:
+        self.admin.check(request)
+        snap = self._settings().snapshot()
+        snap["live"] = {ch.info.id: {"viewers": len(ch.clients) + ch.hls_viewers(), "running": bool(ch.session),
+                                     "pending": ch.pending is not None} for ch in self.st.channels.values()}
+        snap["config_error"] = self.st.config_error
+        return web.json_response(snap, headers={"Cache-Control": "no-store"})
+
+    async def patch(self, request: web.Request) -> web.Response:
+        self.admin.check(request, write=True)
+        settings = self._settings()
+        try:
+            body = await request.json()
+        except Exception:
+            raise web.HTTPBadRequest(text='{"error": "expected JSON"}', content_type="application/json") from None
+        try:
+            cfg = await settings.patch(list(body.get("ops") or []))
+        except SettingsError as err:
+            return web.json_response({"error": str(err), "keys": getattr(err, "keys", [])}, status=err.status)
+        except (KeyError, TypeError, ValueError, StopIteration) as err:
+            return web.json_response({"error": f"bad change: {err}"}, status=400)
+        self.st.config_version = settings.read().version
+        result = await self.st.reload(cfg, restart_now=body.get("apply") == "now")
+        log.info("settings saved from %s: %d change(s)", self.admin.client_ip(request), len(body.get("ops") or []))
+        return web.json_response({"ok": True, **result})
+
+    async def check_feed(self, request: web.Request) -> web.Response:
+        self.admin.check(request, write=True)
+        body = await request.json()
+        url = str(body.get("url", "")).strip()
+        if not url.startswith(("http://", "https://")):
+            return web.json_response({"ok": False, "error": "the URL must start with http:// or https://"})
+        src = SourceConfig(name=str(body.get("name") or "check"), url=url, compressed=body.get("compressed", True))
+        headers = {"User-Agent": USER_AGENT}
+        if not src.compressed:
+            headers["Accept-Encoding"] = "identity"
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                r = await client.get(url, headers=headers)
+            r.raise_for_status()
+            stories = parse_feed(r.content, src)
+        except Exception as err:   # anything: tell the person, never fail the page
+            return web.json_response({"ok": False, "error": f"{type(err).__name__}: {err}"[:300]})
+        newest = max(stories, key=lambda s: s.published or datetime.min.replace(tzinfo=UTC), default=None)
+        return web.json_response({"ok": bool(stories), "stories": len(stories),
+                                  "newest": newest.title if newest else None,
+                                  "error": None if stories else "no stories found - is it an RSS/Atom feed?"})
+
+
 def add_routes(app: web.Application, station: Station) -> None:
     w = Web(station)
+    api = SettingsApi(station)
+    app.router.add_get("/settings", api.page)
+    app.router.add_get("/api/settings", api.get)
+    app.router.add_patch("/api/settings", api.patch)
+    app.router.add_post("/api/feeds/check", api.check_feed)
+    app.router.add_post("/api/login", api.admin.login)
+    app.router.add_post("/api/logout", api.admin.logout)
     app.router.add_get("/", w.index)
     app.router.add_get("/api/status", w.api_status)
     app.router.add_get("/poster/{id}.png", w.poster)
     app.router.add_static("/static/", WEB_DIR / "vendor")
+    app.router.add_static("/assets/", WEB_DIR / "assets")
     app.router.add_static("/fonts/", FONT_DIR)

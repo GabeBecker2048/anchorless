@@ -1,6 +1,10 @@
 # Example: Anchorless with Intel/AMD hardware encoding.
-# Put your settings in config.toml next to this file, and anything personal
-# (like your location) in .env as ANCHORLESS__LOCATION__CITY=... etc.
+# Put your settings in config/config.toml next to this file, and anything personal
+# (like your location, and the settings page's password) in .env:
+#   ANCHORLESS__LOCATION__CITY=...
+#   ANCHORLESS__ADMIN__PASSWORD=<long random>
+# The config folder is writable so the settings page (/settings) can save to it;
+# mount the folder, not the file (a save replaces the file).
 services:
   anchorless:
     build: ..                      # or: image: <your registry>/anchorless
@@ -14,7 +18,7 @@ services:
       ANCHORLESS_CONFIG: /config/config.toml
       ANCHORLESS__VIDEO__ENCODER: vaapi
     volumes:
-      - ./config.toml:/config/config.toml:ro
+      - ./config:/config                 # config.toml (+ local.toml): read-write
       - ./data:/data
       - /path/to/music:/music:ro
     devices:

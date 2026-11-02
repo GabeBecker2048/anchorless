@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import __version__
-from .config import Config, ConfigError, load_config
+from .config import Config, ConfigError, config_path, load_config
 
 
 def _age(when: datetime | None, now: datetime) -> str:
@@ -86,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         logging.getLogger("httpx").setLevel(logging.WARNING)
     try:
         cfg = load_config(args.config)
+        cfg_path = Path(args.config) if args.config else config_path()
     except ConfigError as err:
         print(err, file=sys.stderr)
         return 2
@@ -108,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve":
         from .stream.server import serve
 
-        return serve(cfg)
+        return serve(cfg, cfg_path)
     return 1
 
 

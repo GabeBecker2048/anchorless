@@ -123,102 +123,27 @@ speed = 96                    # pixels per second at 480 lines
 [data]
 dir = "data"                  # SQLite memory of stories already seen
 
-# Sources. Listing any [[source]] replaces the built-in list entirely.
-# Feeds with the same name count as one outlet. scope: local | national | world.
-# exclude: regular expressions; matching headlines or links are skipped.
-[[source]]
-name = "NPR"
-url = "https://feeds.npr.org/1001/rss.xml"
+# Feeds. Anchorless comes with a list of national and world outlets (NPR, NYT,
+# CBS, ABC, NBC, Fox, Guardian, BBC, Al Jazeera, CNBC). [[source]] entries are
+# added to that list; turn any feed off by its URL. Feeds with the same name
+# count as one outlet. scope: national | world (local feeds go in the local
+# feeds file, see [location]). exclude: regular expressions; matching
+# headlines or links are skipped.
+[feeds]
+builtin = true                # false: only your [[source]] entries
+disabled = []                 # feed URLs to skip, e.g. ["https://feeds.npr.org/1001/rss.xml"]
 
-[[source]]
-name = "NPR"
-url = "https://feeds.npr.org/1003/rss.xml"
+# [[source]]
+# name = "Reuters"
+# url = "https://example.com/reuters/rss.xml"
+# scope = "world"
+# category = "general"        # "business" feeds the BUSINESS segment
 
-[[source]]
-name = "NPR"
-url = "https://feeds.npr.org/1004/rss.xml"
-scope = "world"
-
-[[source]]
-name = "NPR"
-url = "https://feeds.npr.org/1006/rss.xml"
-category = "business"
-
-[[source]]
-name = "The New York Times"
-url = "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
-
-[[source]]
-name = "The New York Times"
-url = "https://rss.nytimes.com/services/xml/rss/nyt/US.xml"
-
-[[source]]
-name = "The New York Times"
-url = "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
-scope = "world"
-
-[[source]]
-name = "The New York Times"
-url = "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"
-category = "business"
-
-[[source]]
-name = "CBS News"
-url = "https://www.cbsnews.com/latest/rss/us"
-
-[[source]]
-name = "CBS News"
-url = "https://www.cbsnews.com/latest/rss/world"
-scope = "world"
-
-[[source]]
-name = "CBS News"
-url = "https://www.cbsnews.com/latest/rss/moneywatch"
-category = "business"
-
-[[source]]
-name = "ABC News"
-url = "https://feeds.abcnews.com/abcnews/topstories"
-
-[[source]]
-name = "NBC News"
-url = "https://feeds.nbcnews.com/nbcnews/public/news"
-
-[[source]]
-name = "Fox News"
-url = "https://moxie.foxnews.com/google-publisher/latest.xml"
-
-[[source]]
-name = "The Guardian"
-url = "https://www.theguardian.com/us-news/rss"
-
-[[source]]
-name = "The Guardian"
-url = "https://www.theguardian.com/world/rss"
-scope = "world"
-
-[[source]]
-name = "BBC News"
-url = "https://feeds.bbci.co.uk/news/world/rss.xml"
-scope = "world"
-
-[[source]]
-name = "BBC News"
-url = "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml"
-
-[[source]]
-name = "Al Jazeera"
-url = "https://www.aljazeera.com/xml/rss/all.xml"
-scope = "world"
-
-[[source]]
-name = "CNBC"
-url = "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147"
-category = "business"
-exclude = ["/select/"]        # CNBC Select: shopping and credit-card advice
-
-[[source]]
-name = "CNBC"
-url = "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114"
-category = "business"
-exclude = ["/select/"]
+# The settings page (/settings) edits this file. It is off until a password is
+# set - best from the environment: ANCHORLESS__ADMIN__PASSWORD=<long random>.
+# The file must be writable by Anchorless (in Docker: mount its folder, not the file).
+[admin]
+allow_from = ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+              "100.64.0.0/10", "fc00::/7", "fe80::/10"]   # who may open the settings page
+trusted_proxies = []          # e.g. ["192.168.1.2"]: your reverse proxy, so X-Forwarded-For is believed
+session_days = 30             # how long a login lasts

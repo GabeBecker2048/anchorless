@@ -18,7 +18,9 @@ import contextlib
 import logging
 import threading
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 
 from aiohttp import web
 
@@ -26,6 +28,7 @@ from .. import __version__, sound
 from ..config import Config
 from ..newsroom import Newsroom
 from ..render import make_theme
+from ..settings import Settings
 from .encoder import Encoder
 from .guide import ChannelInfo, channel_list, guide, playlist
 from .playout import Playout
@@ -158,6 +161,9 @@ class Channel:
         self.clients: set[Client] = set()
         self.hls_seen: dict[str, float] = {}     # HLS viewer -> when it last asked for anything
         self.session: Session | None = None
+        # A settings change that needs this channel rebuilt, waiting for it to go idle.
+        self.pending: ChannelInfo | None = None
+        self.on_stopped: Callable[[Channel], None] | None = None
         self.idle_handle: asyncio.TimerHandle | None = None
         self._lock = asyncio.Lock()
         self.stats = {"sessions": 0, "last_start": None, "last_stop": None, "last_stop_reason": None}
@@ -191,6 +197,8 @@ class Channel:
             self.stats["last_stop"] = datetime.now(UTC).isoformat()
             self.stats["last_stop_reason"] = reason
             log.info("%s: session stop: %s (%.0f s of video)", self.info.name, reason, s.frames / s.fps)
+        if self.pending and self.on_stopped:
+            self.on_stopped(self)
 
     def client_left(self, client: Client) -> None:
         self.clients.discard(client)
@@ -296,6 +304,7 @@ class Channel:
         return {
             "name": self.info.name, "number": self.info.number, "theme": self.info.theme,
             "show_on": self.info.show_on,
+            "settings_pending": self.pending is not None,
             "running": bool(s),
             "viewers": len(self.clients) + hls,
             "hls_viewers": hls,
@@ -309,11 +318,87 @@ class Channel:
 class Station:
     """Every channel, sharing one newsroom (one fetch feeds them all)."""
 
-    def __init__(self, cfg: Config) -> None:
+    def __init__(self, cfg: Config, config_path: Path | None = None) -> None:
         self.cfg = cfg
         self.newsroom = Newsroom(cfg)
-        self.channels = {info.id: Channel(cfg, self.newsroom, info) for info in channel_list(cfg)}
+        self.channels = {info.id: self._new_channel(info) for info in channel_list(cfg)}
         self.main = next(iter(self.channels.values()))
+        self.settings = Settings(config_path) if config_path else None
+        self.config_version = self.settings.read().version if self.settings else None
+        self.config_error: str | None = None
+
+    def _new_channel(self, info: ChannelInfo) -> Channel:
+        ch = Channel(self.cfg, self.newsroom, info)
+        ch.on_stopped = self._channel_stopped
+        return ch
+
+    @staticmethod
+    def _render_key(cfg: Config, info: ChannelInfo) -> tuple:
+        """What is baked into a channel's drawing and stream when it starts."""
+        return (info.name, info.theme, info.path, cfg.crawl, cfg.breaking.sound,
+                cfg.breaking.sound_volume, cfg.audio.volume)
+
+    def _channel_stopped(self, ch: Channel) -> None:
+        if ch.pending and self.channels.get(ch.info.id) is ch:
+            asyncio.get_running_loop().create_task(self._rebuild(ch.info.id, ch.pending))
+
+    async def _rebuild(self, cid: str, info: ChannelInfo) -> None:
+        old = self.channels.get(cid)
+        if old:
+            old.pending = None
+            await old.stop_session("settings changed")
+        self.channels[cid] = await asyncio.to_thread(self._new_channel, info)   # draws its set: off the loop
+        log.info("%s: rebuilt with new settings", info.name)
+
+    async def reload(self, new: Config, restart_now: bool = False) -> dict:
+        """Run with new settings: live where possible, rebuilding channels that need it."""
+        old_keys = {cid: self._render_key(self.cfg, ch.info) for cid, ch in self.channels.items()}
+        for name in type(new).model_fields:          # every holder shares this one Config
+            setattr(self.cfg, name, getattr(new, name))
+        infos = {i.id: i for i in channel_list(self.cfg)}
+        result: dict[str, list[str]] = {"restarted": [], "pending": [], "added": [], "removed": []}
+        for cid in [c for c in self.channels if c not in infos]:
+            ch = self.channels.pop(cid)
+            ch.pending = None
+            await ch.stop_session("channel removed")
+            result["removed"].append(ch.info.name)
+        for cid, info in infos.items():
+            ch = self.channels.get(cid)
+            if ch is None:
+                self.channels[cid] = await asyncio.to_thread(self._new_channel, info)
+                result["added"].append(info.name)
+            elif old_keys[cid] != self._render_key(self.cfg, info):
+                if ch.session and not restart_now:
+                    ch.pending = info
+                    result["pending"].append(info.name)
+                else:
+                    await self._rebuild(cid, info)
+                    result["restarted"].append(info.name)
+            else:
+                ch.info = info                      # number, show_on: nothing to redraw
+        self.channels = {cid: self.channels[cid] for cid in infos}
+        self.main = next(iter(self.channels.values()))
+        self.newsroom.wake()
+        self.config_error = None
+        log.info("settings applied: %s", {k: v for k, v in result.items() if v} or "live")
+        return result
+
+    async def watch_config(self) -> None:
+        """Pick up hand edits to the config (or local feeds) file while running."""
+        while self.settings:
+            await asyncio.sleep(3)
+            try:
+                files = self.settings.read()
+                if files.version == self.config_version:
+                    continue
+                self.config_version = files.version
+                new = self.settings.parse(files)
+            except Exception as err:
+                self.config_error = str(err)
+                log.warning("config file changed but is not valid - still running the last good one: %s", err)
+                continue
+            log.info("config file changed: reloading")
+            await self.reload(new)
 
     async def live_main(self, request: web.Request) -> web.StreamResponse:
         return await self.main.live(request)
@@ -356,8 +441,8 @@ class Station:
         })
 
 
-def make_app(cfg: Config) -> web.Application:
-    st = Station(cfg)
+def make_app(cfg: Config, config_path: Path | None = None) -> web.Application:
+    st = Station(cfg, config_path)
     app = web.Application()
     app["station"] = st
     app.router.add_get("/live.ts", st.live_main)          # GET also answers HEAD
@@ -370,9 +455,10 @@ def make_app(cfg: Config) -> web.Application:
     add_routes(app, st)
 
     async def background(app: web.Application):
-        task = asyncio.create_task(st.newsroom.run())
+        tasks = [asyncio.create_task(st.newsroom.run()), asyncio.create_task(st.watch_config())]
         yield
-        task.cancel()
+        for task in tasks:
+            task.cancel()
         for ch in st.channels.values():
             await ch.stop_session("shutting down")
 
@@ -380,9 +466,9 @@ def make_app(cfg: Config) -> web.Application:
     return app
 
 
-def serve(cfg: Config) -> int:
+def serve(cfg: Config, config_path: Path | None = None) -> int:
     log.info("anchorless %s on port %d: %s", __version__, cfg.stream.port,
              ", ".join(f"{c.label} ({c.theme}, {c.show_on})" for c in channel_list(cfg)))
-    web.run_app(make_app(cfg), host=cfg.stream.host, port=cfg.stream.port, access_log=None,
+    web.run_app(make_app(cfg, config_path), host=cfg.stream.host, port=cfg.stream.port, access_log=None,
                 print=None, handle_signals=True)
     return 0
