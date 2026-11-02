@@ -75,6 +75,13 @@ same_story_text_similarity = 0.32
 
 # The newscast: segments play in order, then it loops. A story appears in the
 # first segment it fits and nowhere else. Leave out scope/category to take any story.
+# When several outlets carry a story, whose headline is shown: "first" (first
+# published), "consensus" (if that one has a red flag - loaded words, shouting, or
+# wording no other outlet shares - a clean version the others agree with), or "log"
+# (show "first"; list what consensus would change, on the settings page and in the log).
+headline_choice = "log"
+headline_margin = 0.15        # how much better a version must score to replace the shown one
+
 [[rundown.segment]]
 name = "TOP STORIES"
 stories = 4

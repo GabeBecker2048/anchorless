@@ -54,6 +54,44 @@ async def _fetch(cfg: Config, as_json: bool) -> int:
     return 0
 
 
+async def _headlines(cfg: Config, dump: str | None) -> int:
+    """Every story several outlets carry: each version, its score and why."""
+    from datetime import UTC, datetime
+
+    from . import headline
+    from .pipeline import all_clusters
+    from .sources.rss import RssFetcher
+
+    now = datetime.now(UTC)
+    stories = await RssFetcher().fetch_all(cfg.source, cfg.feeds.allow_private)
+    clusters = all_clusters(stories, cfg, now)
+    rows = []
+    for c in clusters:
+        choice = headline.choose(c, cfg.rundown.headline_margin)
+        if choice is None:
+            continue
+        local = any(s.scope == "local" for s in c.stories)
+        print(f"\n[{len(c.outlets)} outlets] {'CHANGED' if choice.changed else 'kept'}"
+              + (f" - {choice.reason}" if choice.changed else ""))
+        for x in sorted(choice.scores, key=lambda x: -x.total):
+            mark = ">" if x.story is choice.chosen else ("d" if x.story is choice.default else " ")
+            print(f"  {mark} {x.total:5.2f}  {x.story.outlet[:18]:18}  {x.story.title[:90]}")
+            print(f"           {x.why()}")
+        if dump and not local:      # local stories would say where you live
+            rows.append({"when": now.isoformat(timespec="seconds"), "key": c.key, "changed": choice.changed,
+                         "chosen": choice.chosen.key, "default": choice.default.key, "versions": [
+                             {"key": x.story.key, "outlet": x.story.outlet, "title": x.story.title,
+                              "summary": x.story.summary, "scope": x.story.scope, "total": round(x.total, 3),
+                              "corroboration": round(x.corroboration, 3), "coverage": round(x.coverage, 3),
+                              "penalties": x.penalties} for x in choice.scores]})
+    if dump:
+        with open(dump, "a", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+        print(f"\n{len(rows)} stories appended to {dump}", file=sys.stderr)
+    return 0
+
+
 def _hash_password(from_stdin: bool) -> int:
     import getpass
 
@@ -98,6 +136,8 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("serve", help="run the channel: /playlist.m3u, /guide.xml, /live.ts, /health")
     sub.add_parser("check-config", help="validate the config and print it")
+    p = sub.add_parser("headlines", help="each version of every multi-outlet story, scored (consensus headline)")
+    p.add_argument("--dump", help="append the stories (not local ones) to this JSONL file, for calibration")
     p = sub.add_parser("hash-password", help="make a password_hash for [admin] (the settings page)")
     p.add_argument("--stdin", action="store_true", help="read the password from standard input")
 
@@ -125,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
             shown.admin.password_hash = "<set>"
         print(shown.model_dump_json(indent=2))
         return 0
+    if args.command == "headlines":
+        return asyncio.run(_headlines(cfg, args.dump))
     if args.command == "fetch":
         return asyncio.run(_fetch(cfg, args.json))
     if args.command == "render":

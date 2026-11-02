@@ -93,6 +93,7 @@ function render() {
   renderChannels();
   renderSections();
   renderHistory();
+  renderHeadlines();
   renderFileOnly();
   updateSaveBar();
 }
@@ -379,6 +380,26 @@ function renderHistory() {
       el("ul", {}, h.changes.map((c) => el("li", {}, changeLabel(c.key), ": ",
         c.old === null || c.old === undefined ? "" : el("span", { class: "old" }, show(c.old)),
         c.old === null || c.old === undefined ? "added " : " → ", show(c.new))))));
+  }
+}
+
+// ---------- headline choices ----------
+function renderHeadlines() {
+  const root = $("headlines");
+  root.replaceChildren();
+  const log = cur.headline_log || [];
+  if (!log.length) {
+    root.append(el("div", { class: "h" }, fieldOf("rundown.headline_choice", cur.sections)?.value === "first"
+      ? "Off (\"first\")." : "None since the last restart: every story kept its first-published headline."));
+    return;
+  }
+  for (const h of log) {
+    const when = new Date(h.when).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+    root.append(el("div", { class: "hist" },
+      el("div", { class: "w" }, `${when.toUpperCase()} · ${h.mode === "log" ? "WOULD SHOW" : "SHOWING"}`),
+      el("div", {}, `${h.shown.title}`, el("span", { class: "h" }, ` (${h.shown.outlet})`)),
+      el("div", {}, el("span", { class: "old" }, h.instead_of.title), el("span", { class: "h" }, ` (${h.instead_of.outlet})`)),
+      el("div", { class: "h" }, h.why)));
   }
 }
 
