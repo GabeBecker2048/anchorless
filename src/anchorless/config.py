@@ -50,11 +50,15 @@ class ChannelConfig(_Model):
 
 
 class LocationConfig(_Model):
-    """Used for local news (phase 2). Best set from the environment."""
+    """Local news. Best set from the environment, so the location stays out of this file."""
 
+    # Shown as the local segment's title ("{city}" in a segment name).
     city: str | None = None
     region: str | None = None
     country: str | None = None
+    # A TOML file of [[source]] entries for local outlets (see local.example.toml).
+    # Every source in it is local. Kept apart so the config file names no place.
+    sources_file: str | None = None
 
 
 class VideoConfig(_Model):
@@ -106,11 +110,14 @@ class SegmentConfig(_Model):
     # Which stories may appear: none set = any story (e.g. TOP STORIES).
     scope: Scope | None = None
     category: str | None = None
+    # Stories only from these scopes are left out (TOP STORIES skips local-only stories).
+    exclude_scope: list[Scope] = Field(default_factory=list)
 
 
 def _default_segments() -> list[SegmentConfig]:
     return [
-        SegmentConfig(name="TOP STORIES", stories=4),
+        SegmentConfig(name="TOP STORIES", stories=4, exclude_scope=["local"]),
+        SegmentConfig(name="{city}", stories=3, scope="local"),
         SegmentConfig(name="NATIONAL", stories=3, scope="national"),
         SegmentConfig(name="WORLD", stories=3, scope="world"),
         SegmentConfig(name="BUSINESS", stories=2, category="business"),
@@ -137,6 +144,11 @@ class BreakingConfig(_Model):
     cooldown_minutes: float = Field(20, ge=0)
     crawl_tag_minutes: float = Field(60, ge=0)
     title_prefixes: list[str] = Field(default_factory=lambda: ["BREAKING:", "BREAKING NEWS:"])
+    # Local-only stories need more outlets (local newsrooms all cover the same
+    # things). A "BREAKING:" headline still counts. "log" only logs what would
+    # have broken in; "off" never breaks in for local-only stories.
+    local_min_sources: int = Field(5, ge=2)
+    local_alerts: Literal["on", "log", "off"] = "on"
     # "auto" (chiptune for the Studio look, "news" for Classic), "chiptune", "news",
     # "none", or the path of a sound file of your own.
     sound: str = "auto"
@@ -275,6 +287,20 @@ def _apply_env(raw: dict[str, Any], environ: dict[str, str]) -> dict[str, Any]:
     return raw
 
 
+def _local_sources(base: Path, sources_file: str) -> list[dict[str, Any]]:
+    path = base / sources_file
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as err:
+        raise ConfigError(f"local sources file not found: {path}") from err
+    except tomllib.TOMLDecodeError as err:
+        raise ConfigError(f"{path}: {err}") from err
+    sources = data.get("source") or []
+    if not isinstance(sources, list):
+        raise ConfigError(f"{path}: expected [[source]] entries")
+    return [{**src, "scope": "local"} for src in sources]
+
+
 def load_config(path: str | Path | None = None, environ: dict[str, str] | None = None) -> Config:
     """Load the config from ``path`` (or $ANCHORLESS_CONFIG, or ./config.toml if present)."""
     environ = dict(os.environ if environ is None else environ)
@@ -291,6 +317,10 @@ def load_config(path: str | Path | None = None, environ: dict[str, str] | None =
         except tomllib.TOMLDecodeError as err:
             raise ConfigError(f"{path}: {err}") from err
     raw = _apply_env(raw, environ)
+    sources_file = (raw.get("location") or {}).get("sources_file")
+    if sources_file:
+        raw["source"] = list(raw.get("source") or [s.model_dump() for s in default_sources()])
+        raw["source"] += _local_sources(Path(path).parent if path else Path(), sources_file)
     try:
         return Config.model_validate(raw)
     except ValidationError as err:
