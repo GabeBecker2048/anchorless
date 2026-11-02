@@ -330,25 +330,25 @@ class StudioTheme:
         d = ImageDraw.Draw(img)
         cx = lw // 2
 
-        # The empty chair: a rounded office-chair back, then the armrests in front of it.
-        # Centred on the middle of the desk's top (which sits right of the front face,
-        # because depth runs up and to the right), not on the screen.
+        # The empty chair, modelled in 3D and projected like everything else on the
+        # floor (a step toward the back is 2 px right and 1 px up). The backrest is
+        # a panel 3 deep. The arms sit either side of it, the same gap from its
+        # edges, and run 6 forward from it toward the viewer (down and left).
         cx = cx + 5
-        back = [cx - 17, 132, cx + 17, 176]
-        d.rounded_rectangle([back[0] + 5, back[1] - 3, back[2] + 5, back[3] - 3], radius=9,
-                            fill=CHAIR_DARK, outline=INK)                              # its thickness
-        d.rounded_rectangle(back, radius=9, fill=CHAIR, outline=INK)
-        d.rounded_rectangle([back[0] + 2, back[1] + 4, back[0] + 4, back[3] - 8], radius=1,
-                            fill=CHAIR_HI)                                              # lit edge
-        for y0 in (138, 152):                                                           # cushion seams
+        bl, br, btop, bbot = cx - 17, cx + 17, 132, 176         # the backrest's front face
+        thick = 3
+        d.rounded_rectangle([bl + 2 * thick, btop - thick, br + 2 * thick, bbot - thick], radius=9,
+                            fill=CHAIR_DARK, outline=INK)
+        d.rounded_rectangle([bl, btop, br, bbot], radius=9, fill=CHAIR, outline=INK)
+        d.rounded_rectangle([bl + 2, btop + 4, bl + 4, bbot - 8], radius=1, fill=CHAIR_HI)   # lit edge
+        for y0 in (138, 152):                                                      # cushion seams
             d.rounded_rectangle([cx - 11, y0, cx + 11, y0 + 11], radius=4, outline=CHAIR_DARK)
-        # Armrests: each overhangs the back's outline (incl. its thickness, to cx + 22)
-        # by 8 and overlaps it by 10. The right one starts further in because its
-        # isometric top runs 8 to the right.
-        for ax in (cx - 25, cx + 12):
-            _box(d, ax + 3, 161, ax + 6, 176, INK)                                      # post
-            _box(d, ax + 4, 161, ax + 5, 176, (70, 70, 90))
-            iso_box(d, ax, 157, 10, 4, 4, CHAIR_HI, CHAIR_DARK, CHAIR_TOP)             # pad
+        arm_w, arm_len, gap, arm_y = 7, 6, 2, 154       # arm_y: top of an arm where it meets the back
+        for rear_x in (bl - gap - arm_w, br + gap):     # rear ends: same gap each side of the back
+            fx, fy = rear_x - 2 * arm_len, arm_y + arm_len      # the front end, toward the viewer
+            _box(d, fx + 2, fy + 3, fx + 4, fy + 20, INK)       # post down to the seat
+            _box(d, fx + 3, fy + 3, fx + 3, fy + 20, (70, 70, 90))
+            iso_box(d, fx, fy, arm_w, 3, arm_len, CHAIR_HI, CHAIR_DARK, CHAIR_TOP)
 
         cx = lw // 2
         # The desk.
