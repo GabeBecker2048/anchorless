@@ -147,6 +147,7 @@ class SettingsApi:
         snap["live"] = {ch.info.id: {"viewers": len(ch.clients) + ch.hls_viewers(), "running": bool(ch.session),
                                      "pending": ch.pending is not None} for ch in self.st.channels.values()}
         snap["config_error"] = self.st.config_error
+        snap["history"] = self.st.history.recent(20)
         return web.json_response(snap, headers={"Cache-Control": "no-store"})
 
     async def patch(self, request: web.Request) -> web.Response:
@@ -171,7 +172,8 @@ class SettingsApi:
         except (KeyError, TypeError, ValueError, StopIteration) as err:
             return web.json_response({"error": f"bad change: {err}"}, status=400)
         self.st.config_version = settings.read().version
-        result = await self.st.reload(cfg, restart_now=body.get("apply") == "now")
+        result = await self.st.reload(cfg, restart_now=body.get("apply") == "now",
+                                      source=f"settings page ({self.admin.client_ip(request)})")
         log.info("settings saved from %s: %d change(s)", self.admin.client_ip(request), len(body.get("ops") or []))
         return web.json_response({"ok": True, **result})
 
@@ -202,7 +204,28 @@ class SettingsApi:
                                   "error": None if stories else "no stories found - is it an RSS/Atom feed?"})
 
 
+# The pages run only their own files: no inline script or style, nothing from elsewhere.
+# blob: is the stream (mpegts.js feeds the video through a MediaSource); data: is the favicon.
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+       "media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self'; font-src 'self'; "
+       "object-src 'none'; base-uri 'none'; form-action 'self'")
+
+
+async def security_headers(request: web.Request, response: web.StreamResponse) -> None:
+    """On every response (streams too: this runs as headers go out, unlike a middleware)."""
+    h = response.headers
+    h["X-Content-Type-Options"] = "nosniff"
+    h["Referrer-Policy"] = "same-origin"
+    h["Server"] = "anchorless"
+    admin = request.path == "/settings" or request.path.startswith("/api/")
+    if response.content_type == "text/html":
+        h["Content-Security-Policy"] = CSP + ("; frame-ancestors 'none'" if admin else "")
+    if admin:               # the settings can't be framed by another site (clickjacking)
+        h["X-Frame-Options"] = "DENY"
+
+
 def add_routes(app: web.Application, station: Station) -> None:
+    app.on_response_prepare.append(security_headers)
     w = Web(station)
     api = SettingsApi(station)
     app.router.add_get("/settings", api.page)

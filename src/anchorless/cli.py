@@ -54,6 +54,28 @@ async def _fetch(cfg: Config, as_json: bool) -> int:
     return 0
 
 
+def _hash_password(from_stdin: bool) -> int:
+    import getpass
+
+    from .passwords import MIN_LENGTH, hash_password
+    if from_stdin:
+        password = sys.stdin.readline().rstrip("\n")
+    else:
+        password = getpass.getpass(f"Settings password (at least {MIN_LENGTH} characters): ")
+        if getpass.getpass("Again: ") != password:
+            print("The two passwords differ.", file=sys.stderr)
+            return 2
+    try:
+        hashed = hash_password(password)
+    except ValueError as err:
+        print(err, file=sys.stderr)
+        return 2
+    print("Put this in config.toml (and remove any [admin] password / ANCHORLESS__ADMIN__PASSWORD):\n",
+          file=sys.stderr)
+    print(f'[admin]\npassword_hash = "{hashed}"')
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="anchorless", description="A 24/7 text newscast for IPTV.")
     parser.add_argument("--version", action="version", version=f"anchorless {__version__}")
@@ -76,6 +98,8 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("serve", help="run the channel: /playlist.m3u, /guide.xml, /live.ts, /health")
     sub.add_parser("check-config", help="validate the config and print it")
+    p = sub.add_parser("hash-password", help="make a password_hash for [admin] (the settings page)")
+    p.add_argument("--stdin", action="store_true", help="read the password from standard input")
 
     args = parser.parse_args(argv)
     logging.basicConfig(
@@ -84,6 +108,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not args.verbose:
         logging.getLogger("httpx").setLevel(logging.WARNING)
+    if args.command == "hash-password":           # needs no config: you run it while writing one
+        return _hash_password(args.stdin)
     try:
         cfg = load_config(args.config)
         cfg_path = Path(args.config) if args.config else config_path()
@@ -95,6 +121,8 @@ def main(argv: list[str] | None = None) -> int:
         shown = cfg.model_copy(deep=True)
         if shown.admin.password:
             shown.admin.password = "<set>"           # never print the settings password
+        if shown.admin.password_hash:
+            shown.admin.password_hash = "<set>"
         print(shown.model_dump_json(indent=2))
         return 0
     if args.command == "fetch":

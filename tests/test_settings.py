@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pytest
 
@@ -147,10 +148,10 @@ def test_settings_are_off_without_a_password(cfg_file):
 def test_login_guards_and_a_save_applies_live(cfg_file):
     async def body(client, app):
         assert (await client.get("/api/settings")).status == 401
-        assert (await client.post("/api/login", json={"password": "secret"})).status == 403   # no X-Anchorless
+        assert (await client.post("/api/login", json={"password": "secret-password-1"})).status == 403   # no X-Anchorless
         for _ in range(5):
             assert (await client.post("/api/login", json={"password": "nope"}, headers=W)).status == 401
-        assert (await client.post("/api/login", json={"password": "secret"}, headers=W)).status == 429
+        assert (await client.post("/api/login", json={"password": "secret-password-1"}, headers=W)).status == 429
         app["station"].settings  # noqa: B018 - the station has a settings editor
         client.session.cookie_jar.clear()
         # A fresh address-limit: reset the counter (as a minute passing would).
@@ -159,7 +160,7 @@ def test_login_guards_and_a_save_applies_live(cfg_file):
             handler = getattr(route.handler, "__self__", None)
             if handler is not None and hasattr(handler, "_fails"):
                 handler._fails.clear()
-        assert (await client.post("/api/login", json={"password": "secret"}, headers=W)).status == 200
+        assert (await client.post("/api/login", json={"password": "secret-password-1"}, headers=W)).status == 200
         snap = await (await client.get("/api/settings")).json()
         assert "password" not in str(snap["sections"]) and snap["file_only"]["admin"]["password"] == "set"
         r = await client.patch("/api/settings", json={"ops": [
@@ -179,21 +180,21 @@ def test_login_guards_and_a_save_applies_live(cfg_file):
         bad = await client.patch("/api/settings", headers=W, json={"ops": [
             {"op": "set", "key": "rundown.page_seconds", "old": 12.0, "value": 9}]})
         assert bad.status == 409
-    _app_test(cfg_file, {"ANCHORLESS__ADMIN__PASSWORD": "secret"}, body)
+    _app_test(cfg_file, {"ANCHORLESS__ADMIN__PASSWORD": "secret-password-1"}, body)
 
 
 def test_a_session_survives_a_restart(cfg_file):
     cookies = {}
 
     async def first(client, app):
-        r = await client.post("/api/login", json={"password": "secret"}, headers=W)
+        r = await client.post("/api/login", json={"password": "secret-password-1"}, headers=W)
         cookies.update({k: v.value for k, v in r.cookies.items()})
 
     async def second(client, app):
         r = await client.get("/api/settings", cookies=cookies)
         assert r.status == 200
 
-    env = {"ANCHORLESS__ADMIN__PASSWORD": "secret"}
+    env = {"ANCHORLESS__ADMIN__PASSWORD": "secret-password-1"}
     _app_test(cfg_file, env, first)
     _app_test(cfg_file, env, second)
 
@@ -254,14 +255,14 @@ def test_a_redirect_into_the_lan_is_refused():
 
 def test_the_settings_api_refuses_a_lan_feed(cfg_file):
     async def body(client, app):
-        await client.post("/api/login", json={"password": "secret"}, headers=W)
+        await client.post("/api/login", json={"password": "secret-password-1"}, headers=W)
         r = await client.patch("/api/settings", headers=W, json={"ops": [
             {"op": "feed_add", "origin": "config", "value": {"name": "Router", "url": "http://192.168.1.1/"}}]})
         assert r.status == 400 and "private network" in (await r.json())["error"]
         r = await client.post("/api/feeds/check", headers=W, json={"url": "http://127.0.0.1:9798/health"})
         assert not (await r.json())["ok"]
         assert "192.168.1.1" not in cfg_file.read_text()
-    _app_test(cfg_file, {"ANCHORLESS__ADMIN__PASSWORD": "secret"}, body)
+    _app_test(cfg_file, {"ANCHORLESS__ADMIN__PASSWORD": "secret-password-1"}, body)
 
 
 # --- https only ---
@@ -271,9 +272,9 @@ def test_login_needs_https_except_from_this_machine(cfg_file):
 
     async def body(client, app):
         lan = {**W, "X-Forwarded-For": "192.168.1.50"}       # through the (trusted) proxy, from the LAN
-        r = await client.post("/api/login", json={"password": "secret"}, headers={**lan, "X-Forwarded-Proto": "http"})
+        r = await client.post("/api/login", json={"password": "secret-password-1"}, headers={**lan, "X-Forwarded-Proto": "http"})
         assert r.status == 403 and (await r.json())["error"] == "https required"
-        r = await client.post("/api/login", json={"password": "secret"}, headers={**lan, "X-Forwarded-Proto": "https"})
+        r = await client.post("/api/login", json={"password": "secret-password-1"}, headers={**lan, "X-Forwarded-Proto": "https"})
         assert r.status == 200 and "secure" in r.headers["Set-Cookie"].lower()
         # (A Secure cookie is only sent over https; this test client is plain http, so pass it on.)
         jar = {k: v.value for k, v in r.cookies.items()}
@@ -282,5 +283,100 @@ def test_login_needs_https_except_from_this_machine(cfg_file):
         plain = await client.get("/api/settings", headers={**lan, "X-Forwarded-Proto": "http"}, cookies=jar)
         assert plain.status == 403
         client.session.cookie_jar.clear()
-        assert (await client.post("/api/login", json={"password": "secret"}, headers=W)).status == 200   # localhost
-    _app_test(cfg_file, {"ANCHORLESS__ADMIN__PASSWORD": "secret"}, body)
+        assert (await client.post("/api/login", json={"password": "secret-password-1"}, headers=W)).status == 200   # localhost
+    _app_test(cfg_file, {"ANCHORLESS__ADMIN__PASSWORD": "secret-password-1"}, body)
+
+
+# --- headers, hashed passwords, change history ---
+
+def test_security_headers_everywhere(cfg_file):
+    async def body(client, app):
+        page = await client.get("/")
+        csp = page.headers["Content-Security-Policy"]
+        assert "script-src 'self'" in csp and "unsafe-inline" not in csp and "frame-ancestors" not in csp
+        assert page.headers["X-Content-Type-Options"] == "nosniff" and page.headers["Server"] == "anchorless"
+        settings = await client.get("/settings")
+        assert "frame-ancestors 'none'" in settings.headers["Content-Security-Policy"]
+        assert settings.headers["X-Frame-Options"] == "DENY"
+        api = await client.get("/api/status")
+        assert api.headers["X-Frame-Options"] == "DENY" and api.headers["Referrer-Policy"] == "same-origin"
+        m3u = await client.get("/playlist.m3u")
+        assert m3u.headers["X-Content-Type-Options"] == "nosniff" and "Content-Security-Policy" not in m3u.headers
+        html = await page.text() + await settings.text()
+        assert "<script>" not in html and "<style>" not in html and 'style="' not in html   # nothing inline
+    _app_test(cfg_file, {}, body)
+
+
+def test_password_hash_and_rules(tmp_path, cfg_file):
+    from anchorless.config import ConfigError, load_config
+    from anchorless.passwords import hash_password, verify
+
+    h = hash_password("correct horse battery")
+    assert verify("correct horse battery", h) and not verify("correct horse batterx", h)
+    assert hash_password("correct horse battery") != h                    # salted
+    with pytest.raises(ValueError):
+        hash_password("short")
+    base = cfg_file.read_text()
+    cfg_file.write_text(base + '\n[admin]\npassword = "short"\n')
+    with pytest.raises(ConfigError, match="at least 12"):
+        load_config(cfg_file, environ={})
+    cfg_file.write_text(base + f'\n[admin]\npassword = "long-enough-pass"\npassword_hash = "{h}"\n')
+    with pytest.raises(ConfigError, match="not both"):
+        load_config(cfg_file, environ={})
+    cfg_file.write_text(base + '\n[admin]\npassword_hash = "md5$abc"\n')
+    with pytest.raises(ConfigError, match="scrypt"):
+        load_config(cfg_file, environ={})
+    cfg_file.write_text(base + f'\n[admin]\npassword_hash = "{h}"\n')
+
+    async def body(client, app):
+        assert (await client.post("/api/login", json={"password": "wrong-password-1"}, headers=W)).status == 401
+        assert (await client.post("/api/login", json={"password": "correct horse battery"}, headers=W)).status == 200
+        snap = await (await client.get("/api/settings")).json()
+        assert h not in json.dumps(snap) and snap["file_only"]["admin"]["password_hash"] == "set"
+    _app_test(cfg_file, {}, body)
+
+
+def test_hash_password_command(capsys, monkeypatch):
+    import io
+
+    from anchorless.cli import main
+    from anchorless.passwords import verify
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("correct horse battery\n"))
+    assert main(["hash-password", "--stdin"]) == 0
+    line = capsys.readouterr().out.strip().splitlines()[-1]
+    assert verify("correct horse battery", line.split('"')[1])
+    monkeypatch.setattr("sys.stdin", io.StringIO("short\n"))
+    assert main(["hash-password", "--stdin"]) == 2
+
+
+def test_changes_are_recorded_with_who_and_what(cfg_file):
+    from anchorless.config import load_config
+    from anchorless.settings import diff_configs
+
+    a = load_config(cfg_file, environ={"ANCHORLESS__ADMIN__PASSWORD": "first-password-1"})
+    b = a.model_copy(deep=True)
+    b.rundown.page_seconds = 8
+    b.admin.password = "second-password-2"
+    changes = {c["key"]: c for c in diff_configs(a, b)}
+    assert changes["rundown.page_seconds"]["old"] == 12 and changes["rundown.page_seconds"]["new"] == 8
+    assert changes["admin.password"] == {"key": "admin.password", "old": "set", "new": "changed"}
+    assert "first-password-1" not in json.dumps(changes) and "second-password-2" not in json.dumps(changes)
+
+    async def body(client, app):
+        await client.post("/api/login", json={"password": "secret-password-1"}, headers=W)
+        await client.patch("/api/settings", headers=W, json={"ops": [
+            {"op": "set", "key": "rundown.page_seconds", "old": 12.0, "value": 9},
+            {"op": "feed_toggle", "origin": "builtin", "url": "https://feeds.npr.org/1001/rss.xml", "old": True, "value": False}]})
+        st = app["station"]
+        cfg_file.write_text(cfg_file.read_text().replace("page_seconds = 9", "page_seconds = 7"))
+        st.config_version = "stale"
+        await asyncio.wait_for(_one_watch_round(st), 10)
+        hist = (await (await client.get("/api/settings")).json())["history"]
+        assert hist[0]["source"] == "file edit" and hist[0]["changes"] == [
+            {"key": "rundown.page_seconds", "old": 9.0, "new": 7.0}]
+        assert hist[1]["source"].startswith("settings page (127.0.0.1")
+        keys = {c["key"] for c in hist[1]["changes"]}
+        assert keys == {"rundown.page_seconds", "feed https://feeds.npr.org/1001/rss.xml"}
+        assert (cfg_file.parent / "data" / "settings-history.jsonl").exists()
+    _app_test(cfg_file, {"ANCHORLESS__ADMIN__PASSWORD": "secret-password-1"}, body)

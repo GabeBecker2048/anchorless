@@ -96,8 +96,13 @@ name, crawl or sound restarts that channel, either right away or once nobody is
 watching. Two people saving at once can't overwrite each other: a setting
 changed since your page loaded it is reported as a conflict instead.
 
-It is **off until a password is set**: `ANCHORLESS__ADMIN__PASSWORD` in the
-environment. It is on the same port as everything else; only `/settings` and
+It is **off until a password is set** (12+ characters): `ANCHORLESS__ADMIN__PASSWORD`
+in the environment, or a hash in the config from `anchorless hash-password`
+(`[admin] password_hash`, scrypt) so the file never holds the password itself.
+Every change, from the page or a hand edit, is recorded with who/what/when
+(`data/settings-history.jsonl`, shown on the page under "Recent changes").
+The pages send their own security headers (a strict Content-Security-Policy, no
+framing of the settings page, `nosniff`), so they are safe without a reverse proxy too. It is on the same port as everything else; only `/settings` and
 its API need the login (the TV tuner, guide and viewer page stay open). By
 default it only answers private networks (`[admin] allow_from`) and only over
 https (`[admin] require_https`: put it behind a reverse proxy with TLS, or use

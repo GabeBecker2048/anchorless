@@ -29,7 +29,7 @@ from ..config import Config
 from ..newsroom import Newsroom
 from ..render import make_theme
 from ..render.theme import resolve_look
-from ..settings import Settings
+from ..settings import History, Settings, diff_configs
 from .encoder import Encoder
 from .guide import ChannelInfo, channel_list, guide, playlist
 from .playout import Playout
@@ -328,6 +328,7 @@ class Station:
         self.settings = Settings(config_path) if config_path else None
         self.config_version = self.settings.read().version if self.settings else None
         self.config_error: str | None = None
+        self.history = History(Path(cfg.data.dir) / "settings-history.jsonl")
 
     def _new_channel(self, info: ChannelInfo) -> Channel:
         ch = Channel(self.cfg, self.newsroom, info)
@@ -352,8 +353,13 @@ class Station:
         self.channels[cid] = await asyncio.to_thread(self._new_channel, info)   # draws its set: off the loop
         log.info("%s: rebuilt with new settings", info.name)
 
-    async def reload(self, new: Config, restart_now: bool = False) -> dict:
+    async def reload(self, new: Config, restart_now: bool = False, source: str = "file edit") -> dict:
         """Run with new settings: live where possible, rebuilding channels that need it."""
+        changes = diff_configs(self.cfg, new)
+        if changes:
+            self.history.add(source, changes)
+            log.info("settings changed (%s): %s", source,
+                     "; ".join(f"{c['key']}: {c['old']} -> {c['new']}" for c in changes[:20]))
         old_keys = {cid: self._render_key(self.cfg, ch.info) for cid, ch in self.channels.items()}
         for name in type(new).model_fields:          # every holder shares this one Config
             setattr(self.cfg, name, getattr(new, name))

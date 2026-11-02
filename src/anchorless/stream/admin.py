@@ -4,7 +4,8 @@ The TV side (/live.ts, /playlist.m3u, /guide.xml, ...) and the viewer page stay
 open. The settings page and its API need, in order:
 
 1. a password to exist at all ([admin] password, best from the environment as
-   ANCHORLESS__ADMIN__PASSWORD) - without one the settings page is switched off;
+   ANCHORLESS__ADMIN__PASSWORD, or [admin] password_hash from `anchorless
+   hash-password`) - without one the settings page is switched off;
 2. a client address in [admin] allow_from (default: this machine and private
    networks). Behind a reverse proxy listed in [admin] trusted_proxies, the
    address comes from X-Forwarded-For;
@@ -21,6 +22,7 @@ open. The settings page and its API need, in order:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import ipaddress
@@ -35,6 +37,7 @@ from urllib.parse import urlsplit
 from aiohttp import web
 
 from ..config import Config
+from ..passwords import verify
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +63,7 @@ class Admin:
 
     @property
     def enabled(self) -> bool:
-        return bool(self.cfg.admin.password)
+        return bool(self.cfg.admin.password or self.cfg.admin.password_hash)
 
     def client_ip(self, request: web.Request) -> str:
         """The real client: X-Forwarded-For is believed only from a trusted proxy."""
@@ -98,7 +101,7 @@ class Admin:
                 fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                 with os.fdopen(fd, "wb") as f:
                     f.write(self._secret)
-        return hmac.new(self._secret, (self.cfg.admin.password or "").encode(), hashlib.sha256).digest()
+        return hmac.new(self._secret, self.cfg.admin.secret.encode(), hashlib.sha256).digest()
 
     def _token(self, expires: int) -> str:
         sig = hmac.new(self._key(), str(expires).encode(), hashlib.sha256).hexdigest()
@@ -152,7 +155,7 @@ class Admin:
             password = str((await request.json()).get("password", ""))
         except Exception:
             password = ""
-        if not hmac.compare_digest(password.encode(), (self.cfg.admin.password or "").encode()):
+        if not await self._password_ok(password):
             fails.append(time.monotonic())
             log.warning("settings: wrong password from %s", ip)
             raise web.HTTPUnauthorized(text='{"error": "wrong password"}', content_type="application/json")
@@ -165,6 +168,12 @@ class Admin:
                         samesite="Strict", secure=secure, path="/")
         log.info("settings: login from %s", ip)
         return resp
+
+    async def _password_ok(self, password: str) -> bool:
+        a = self.cfg.admin
+        if a.password_hash:     # scrypt: ~50 ms of CPU, off the event loop
+            return await asyncio.to_thread(verify, password, a.password_hash)
+        return hmac.compare_digest(password.encode(), (a.password or "").encode())
 
     async def logout(self, request: web.Request) -> web.Response:
         resp = web.json_response({"ok": True})
