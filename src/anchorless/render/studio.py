@@ -343,7 +343,7 @@ class StudioTheme:
         d.rounded_rectangle([bl + 2, btop + 4, bl + 4, bbot - 8], radius=1, fill=CHAIR_HI)   # lit edge
         for y0 in (136, 151):                                                      # cushion seams
             d.rounded_rectangle([cx - 13, y0, cx + 13, y0 + 12], radius=4, outline=CHAIR_DARK)
-        arm_w, arm_len, gap, arm_y = 7, 6, 0, 154       # arm_y: top of an arm where it meets the back
+        arm_w, arm_len, gap, arm_y = 7, 6, 0, 156       # arm_y: top of an arm where it meets the back
         for rear_x in (bl - gap - arm_w, br + gap):     # rear ends: same gap each side of the back
             fx, fy = rear_x - 2 * arm_len, arm_y + arm_len      # the front end, toward the viewer
             _box(d, fx + 2, fy + 3, fx + 4, fy + 20, INK)       # post down to the seat
@@ -371,10 +371,16 @@ class StudioTheme:
             d.line([(x0 + 5, yy), (x1 - 2, yy)], fill=(110, 16, 34))
         iso_box(d, dx0 + 34, dtop - 4, 22, 2, 4, WHITE, (200, 200, 216), (230, 230, 244))
         iso_box(d, dx0 + 36, dtop - 7, 20, 2, 4, (236, 236, 248), (190, 190, 206), WHITE)
-        _box(d, cx - 1, dtop - 18, cx + 1, dtop - 4, (60, 60, 76))          # mic stand
-        _box(d, cx - 3, dtop - 23, cx + 3, dtop - 17, INK)
-        _box(d, cx - 2, dtop - 22, cx + 2, dtop - 18, (120, 120, 140))
-        iso_box(d, cx - 6, dtop - 4, 12, 1, 3, (60, 60, 76), (40, 40, 52), (90, 90, 110))
+        # The desk mic, in isometric: a weighted base, a pole and a capsule with a grille.
+        MIC, MIC_SIDE, MIC_TOP = (96, 96, 118), (58, 58, 74), (150, 150, 172)
+        iso_box(d, cx - 6, dtop - 5, 11, 2, 4, MIC, MIC_SIDE, MIC_TOP)        # base
+        px0 = cx + 1                                                         # the pole: centre of the base
+        _box(d, px0 - 1, dtop - 19, px0 + 1, dtop - 8, INK)
+        _box(d, px0, dtop - 19, px0, dtop - 8, MIC_TOP)                      # lit side
+        iso_box(d, px0 - 3, dtop - 27, 5, 8, 2, MIC, MIC_SIDE, MIC_TOP)      # capsule
+        for gy in range(dtop - 25, dtop - 20, 2):                            # grille
+            d.line([(px0 - 2, gy), (px0 + 1, gy)], fill=MIC_SIDE)
+        _box(d, px0 - 2, dtop - 26, px0 - 2, dtop - 21, MIC_TOP)             # highlight
         mx, my = self.MUG
         iso_box(d, mx, my, 10, 12, 3, WHITE, (196, 196, 214), COFFEE)         # the mug
         _box(d, mx + 1, my + 1, mx + 9, my + 1, (60, 36, 24))
