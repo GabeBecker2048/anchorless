@@ -3,37 +3,34 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ..config import Config
 from ..newsroom import Newsroom
 from ..stream.playout import Playout
-from .crawl import Crawl
-from .pages import ClassicTheme
+from . import make_theme
 
 log = logging.getLogger(__name__)
 
 
-def _with_overlays(theme: ClassicTheme, page, items, now: datetime, fps: int):
-    img = page.copy()
-    x0, y0, _, _ = theme.clock_box
-    img.paste(theme.clock(now), (x0, y0))
-    crawl = Crawl(theme, items, fps)
-    for _ in range(round(fps * 1.5)):   # a little way in, like a real frame
-        crawl.advance()
-    img.paste(crawl.window(), (theme.crawl_label_w, theme.crawl_y + theme.px(2)))
-    return img
+def _frame_at(cfg: Config, room: Newsroom, theme, start: datetime, seconds: float, breaking=None):
+    """A real frame from the playout, ``seconds`` in (with the crawl, clock and animation)."""
+    if breaking is not None:
+        room.raise_alert(breaking, start)
+    play = Playout(cfg, room, start, theme)
+    frame = None
+    for _ in range(max(1, round(seconds * cfg.video.fps))):
+        frame = play.next_image()
+    return frame.copy()
 
 
-async def write_stills(cfg: Config, out: Path) -> int:
+async def write_stills(cfg: Config, out: Path, theme_name: str | None = None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     room = Newsroom(cfg)
     rundown = await room.refresh()
     now = datetime.now(UTC)
-    theme = ClassicTheme(cfg)
-    items = room.crawl_items(now)
-    fps = cfg.video.fps
+    theme = make_theme(cfg, theme_name)
     written = []
 
     def save(name: str, img) -> None:
@@ -43,28 +40,27 @@ async def write_stills(cfg: Config, out: Path) -> int:
 
     if rundown.empty:
         log.warning("no stories: only the stand-by page")
+        save("stand-by", _frame_at(cfg, room, theme, now, 1))
     else:
-        seg = rundown.segments[0]
-        save("1-segment-intro", _with_overlays(theme, theme.intro_page(seg.name, seg.clusters), items, now, fps))
-        save("2-story", _with_overlays(theme, theme.story_page(seg.clusters[0], seg.name, 1,
-                                                                 len(seg.clusters), now), items, now, fps))
-        # The longest headline in the rundown, to check that text fitting works.
-        longest = max(rundown.clusters, key=lambda c: len(c.lead.title) + len(c.lead.summary))
-        save("3-story-long-headline", _with_overlays(theme, theme.story_page(longest, "WORLD", 2, 3, now),
-                                                     items, now, fps))
+        intro = cfg.rundown.intro_seconds
+        save("1-segment-intro", _frame_at(cfg, room, theme, now, max(1, intro - 1)))
+        save("2-story", _frame_at(cfg, room, theme, now, intro + 2))
         big = rundown.segments[0].clusters[0]
-        tagged = [(big.lead.title, True)] + [i for i in items if i[0] != big.lead.title]
-        save("4-breaking-title", _with_overlays(theme, theme.breaking_title(False), tagged, now, fps))
-        save("5-breaking-story", _with_overlays(theme, theme.story_page(big, "BREAKING NEWS", 1, 1, now,
-                                                                         breaking=True), tagged, now, fps))
-    save("6-stand-by", _with_overlays(theme, theme.empty_page(), [], now, fps))
-
-    # One frame straight out of the playout, to prove the real path renders.
-    play = Playout(cfg, room, now, theme)
-    for _ in range(fps * 2):
-        frame = play.next_image()
-    save("7-playout-frame", frame.copy())
-
+        room.add_breaking_tag(big, now)
+        save("3-breaking-flash", _frame_at(cfg, room, theme, now, 1.6, breaking=big))
+        save("4-breaking-story", _frame_at(cfg, room, theme, now, 4.6, breaking=big))
+        room.breaking_tags.clear()
+    save("5-stand-by", theme.empty_page(now))
+    # The studio at four times of day.
+    if hasattr(theme, "background"):
+        tz = cfg.tz
+        local = now.astimezone(tz)
+        for label, hour in (("night", 2), ("morning", 7), ("day", 13), ("dusk", 18.5)):
+            t = local.replace(hour=int(hour), minute=int((hour % 1) * 60), second=0) + timedelta(0)
+            seg = rundown.segments[0] if not rundown.empty else None
+            img = (theme.story_page(seg.clusters[0], seg.name, 1, len(seg.clusters), t) if seg
+                   else theme.empty_page(t))
+            save(f"6-time-{label}", img)
     for p in written:
         print(p)
     return 0

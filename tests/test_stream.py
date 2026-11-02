@@ -1,4 +1,6 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+
+import pytest
 
 from anchorless.config import Config
 from anchorless.models import Rundown
@@ -51,14 +53,19 @@ class FakeNews:
         self.version = 1
         self.queue = []
 
-    def take_breaking(self, now):
-        return self.queue.pop(0) if self.queue else None
+    def next_alert(self, now, after):
+        for seq, c in enumerate(self.queue, 1):
+            if seq > after:
+                return seq, c
+        return None
 
     def crawl_items(self, now):
         return [(c.lead.title, False) for c in self.rundown.clusters] if self.rundown else []
 
 
-def test_playout_frames(stories, cfg):
+@pytest.mark.parametrize("theme", ["studio", "classic"])
+def test_playout_frames(stories, cfg, theme):
+    cfg.theme.name = theme
     cfg.rundown.page_seconds = 3
     cfg.rundown.intro_seconds = 1
     cfg.video.fps = 4
@@ -74,21 +81,27 @@ def test_playout_frames(stories, cfg):
     assert "BREAKING" in seen and "TOP STORIES" in seen
 
 
-def test_playout_empty_rundown():
+@pytest.mark.parametrize("theme", ["studio", "classic"])
+def test_playout_empty_rundown(theme):
     cfg = Config()
+    cfg.theme.name = theme
     cfg.video.fps = 2
     play = Playout(cfg, FakeNews(Rundown(segments=[], built_at=NOW)), NOW)
     play.next_frame()
     assert play.on_air == "stand by"
 
 
-def test_guide_and_playlist():
-    cfg = Config()
+def test_guide_and_playlist_with_an_extra_channel():
+    from anchorless.config import ExtraChannelConfig
+
+    cfg = Config(extra_channel=[ExtraChannelConfig(name="NEWS CLASSIC", number=97, id="x.classic")])
     text = guide(cfg, datetime(2026, 11, 1, 12, tzinfo=UTC))
     # DST ends on 2026-11-01 in Chicago: the first day is 25 hours long.
     assert 'start="20261101000000 -0500" stop="20261102000000 -0600"' in text
-    m3u = playlist(cfg, "host:9798")
-    assert 'tvg-chno="98"' in m3u and m3u.strip().endswith("http://host:9798/live.ts")
+    assert text.count("<channel ") == 2 and text.count("<programme ") == 6
+    m3u = playlist(cfg, "host:9798").splitlines()
+    assert 'tvg-chno="98"' in m3u[1] and m3u[2] == "http://host:9798/live.ts"
+    assert 'tvg-chno="97"' in m3u[3] and m3u[4] == "http://host:9798/live/x.classic.ts"
 
 
 def test_ffmpeg_args():
@@ -117,3 +130,40 @@ def test_breaking_story_not_repeated_but_no_dead_loop(stories, cfg):
         shown.append(play.on_air)
     # The breaking alert, then (after a loop) the story again: never a hang.
     assert shown[0].startswith("BREAKING") and any(s.startswith("ONLY") for s in shown)
+
+
+def test_studio_lighting_follows_the_clock():
+    from anchorless.render.studio import DAY, NIGHT, lighting_at
+
+    assert lighting_at(2) == NIGHT
+    assert lighting_at(12) == DAY
+    dawn = lighting_at(6.0)
+    assert dawn.sky_top != NIGHT.sky_top and dawn.sky_top != DAY.sky_top
+
+
+def test_studio_clock_blinks():
+    from anchorless.render.studio import StudioTheme
+
+    t = StudioTheme(Config())
+    a, b = NOW, NOW + timedelta(seconds=1)
+    assert t.clock_key(a) != t.clock_key(b)
+    assert t.clock(a).tobytes() != t.clock(b).tobytes()
+
+
+def test_alerts_reach_every_channel(cfg, stories):
+    from anchorless.newsroom import Newsroom
+    from anchorless.store import Store
+
+    room = Newsroom(cfg, Store(":memory:"))
+    rundown = build_rundown(all_clusters(stories, cfg, NOW), cfg, NOW)
+    room.rundown = rundown
+    room.raise_alert(rundown.clusters[0], NOW)
+    a = Playout(cfg, room, NOW)
+    b = Playout(cfg, room, NOW)
+    a.next_frame()
+    b.next_frame()
+    assert a.on_air.startswith("BREAKING") and b.on_air.startswith("BREAKING")
+    # Stale after 15 minutes.
+    c = Playout(cfg, room, NOW + timedelta(minutes=20))
+    c.next_frame()
+    assert not c.on_air.startswith("BREAKING")

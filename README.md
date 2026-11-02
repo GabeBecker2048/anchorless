@@ -1,8 +1,10 @@
 # Anchorless
 
 **News without the anchor.** Anchorless turns news headlines into a 24/7 TV
-channel. It is a looping newscast of text pages, with a headline crawl, a clock,
-background music and breaking-news alerts. It serves the channel as a Live TV
+channel: an empty pixel-art news set, where the news plays on the big screen
+behind a desk nobody sits at. There is a headline crawl, a clock, background
+music and breaking-news alerts (the studio goes red and the desk beacon spins).
+The window behind the set follows the time of day, and there are fish. It serves the channel as a Live TV
 tuner (M3U + XMLTV + MPEG-TS) for Jellyfin, Plex, Channels DVR or any IPTV
 player.
 
@@ -44,6 +46,15 @@ Then point your IPTV client at:
 joins a shared stream at its live edge, with nothing buffered. Without sharing,
 every viewer gets Anchorless's own head start.
 
+## Themes and channels
+
+- `studio` (default): the empty pixel-art news set.
+- `classic`: full-screen cable-news pages.
+
+One server can run several channels from the same news, each with its own
+stream: add `[[extra_channel]]` entries (see the example config). They all
+appear in the one playlist and guide.
+
 ## Configuration
 
 Copy [`config.example.toml`](config.example.toml) to `config.toml`. Every
@@ -68,5 +79,5 @@ sources list entirely in your config.
 
 ## License
 
-MIT. The bundled Barlow fonts are under the SIL Open Font License
-(`src/anchorless/fonts/OFL-Barlow.txt`).
+MIT. The bundled fonts (Barlow, Pixelify Sans, Silkscreen, VT323 and
+Press Start 2P) are all under the SIL Open Font License.

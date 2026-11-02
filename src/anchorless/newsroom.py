@@ -26,8 +26,10 @@ class Newsroom:
         self.fetcher = RssFetcher()
         self.rundown: Rundown | None = None
         self.version = 0                      # bumps on every new rundown
-        # Alerts waiting for the next page boundary, with when they were raised.
-        self.breaking_queue: list[tuple[Cluster, datetime]] = []
+        # Recent alerts: (sequence number, story, when raised). Every channel's playout
+        # keeps its own place in this log, so each one plays every alert.
+        self.alerts: list[tuple[int, Cluster, datetime]] = []
+        self._alert_seq = 0
         # Cluster key -> (headline, until when it carries the BREAKING tag in the crawl).
         self.breaking_tags: dict[str, tuple[str, datetime]] = {}
         self.last_refresh: datetime | None = None
@@ -48,7 +50,7 @@ class Newsroom:
             hit = pick_breaking(clusters, self.cfg.breaking, self.store, now)
             if hit:
                 log.info("BREAKING: %s (%d outlets)", hit.lead.title, len(hit.outlets))
-                self.breaking_queue.append((hit, now))
+                self.raise_alert(hit, now)
                 rundown.breaking = hit
                 self.add_breaking_tag(hit, now)
         self.breaking_tags = {k: v for k, v in self.breaking_tags.items() if v[1] > now}
@@ -67,13 +69,16 @@ class Newsroom:
         until = now + timedelta(minutes=self.cfg.breaking.crawl_tag_minutes)
         self.breaking_tags[cluster.key] = (cluster.lead.title, until)
 
-    def take_breaking(self, now: datetime) -> Cluster | None:
-        """The next alert to play. One raised while nobody watched is stale after 15 min
-        (it still carries the BREAKING tag in the crawl)."""
-        while self.breaking_queue:
-            cluster, raised = self.breaking_queue.pop(0)
-            if now - raised <= STALE_ALERT:
-                return cluster
+    def raise_alert(self, cluster: Cluster, now: datetime) -> None:
+        self._alert_seq += 1
+        self.alerts = [a for a in self.alerts if now - a[2] <= STALE_ALERT] + [(self._alert_seq, cluster, now)]
+
+    def next_alert(self, now: datetime, after: int) -> tuple[int, Cluster] | None:
+        """The first alert after sequence number ``after`` that is still fresh. An alert
+        stays playable for 15 minutes (after that it only keeps its tag in the crawl)."""
+        for seq, cluster, raised in self.alerts:
+            if seq > after and now - raised <= STALE_ALERT:
+                return seq, cluster
         return None
 
     def crawl_items(self, now: datetime) -> list[tuple[str, bool]]:
