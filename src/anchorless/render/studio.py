@@ -331,12 +331,14 @@ class StudioTheme:
         cx = lw // 2
 
         # The empty chair: a tall office chair, turned a little, in isometric.
+        # The armrests flank the backrest with the same gap on each side; the left one
+        # is drawn first so the backrest hides the part of it that runs behind.
+        iso_box(d, cx - 22, 152, 6, 18, 3, CHAIR_HI, CHAIR_DARK, CHAIR_TOP)
         iso_box(d, cx - 15, 124, 28, 46, 4, CHAIR, CHAIR_DARK, CHAIR_TOP)
         _box(d, cx - 14, 125, cx - 12, 169, CHAIR_HI)                       # lit edge
         d.rounded_rectangle([cx - 9, 130, cx + 9, 150], radius=3, outline=CHAIR_DARK)   # cushion seams
         d.line([(cx - 9, 158), (cx + 9, 158)], fill=CHAIR_DARK)
-        iso_box(d, cx - 22, 160, 5, 10, 6, CHAIR_HI, CHAIR_DARK, CHAIR_TOP)   # armrests
-        iso_box(d, cx + 16, 160, 5, 10, 6, CHAIR, CHAIR_DARK, CHAIR_TOP)
+        iso_box(d, cx + 14, 152, 6, 18, 3, CHAIR, CHAIR_DARK, CHAIR_TOP)
 
         # The desk.
         dx0, dx1, dtop, dbot, depth = self.DESK
