@@ -110,6 +110,9 @@ def test_guide_and_playlist_with_an_extra_channel():
     m3u = playlist(cfg, "host:9798").splitlines()
     assert 'tvg-chno="98"' in m3u[1] and m3u[2] == "http://host:9798/live.ts"
     assert 'tvg-chno="97"' in m3u[3] and m3u[4] == "http://host:9798/live/x.classic.ts"
+    # A web-only channel is left out of the playlist and the guide.
+    web_only = Config(extra_channel=[ExtraChannelConfig(name="TRY", number=96, id="x.try", in_guide=False)])
+    assert "x.try" not in playlist(web_only, "host:9798") and "x.try" not in guide(web_only, NOW)
 
 
 def test_ffmpeg_args():

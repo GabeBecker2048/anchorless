@@ -384,7 +384,7 @@ function render() {
   if (status.channels.length > 1) {
     sel.hidden = false;
     if (sel.options.length !== status.channels.length) {
-      sel.replaceChildren(...status.channels.map((c) => { const o = el("option", null, `${c.number} ${c.name}`); o.value = c.id; return o; }));
+      sel.replaceChildren(...status.channels.map((c) => { const o = el("option", null, `${c.number} ${c.name}` + (c.in_guide ? "" : " (web only)")); o.value = c.id; return o; }));
     }
     sel.value = channel().id;
   }
