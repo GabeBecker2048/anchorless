@@ -77,7 +77,7 @@ class RssFetcher:
 
     async def _fetch(self, client: httpx.AsyncClient, source: SourceConfig) -> list[Story]:
         st = self.state.setdefault(source.url, FeedState())
-        headers = {}
+        headers = {} if source.compressed else {"Accept-Encoding": "identity"}
         if st.stories is not None:
             if st.etag:
                 headers["If-None-Match"] = st.etag

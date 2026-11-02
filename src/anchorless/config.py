@@ -165,6 +165,9 @@ class SourceConfig(_Model):
     category: str = "general"
     weight: float = Field(1.0, ge=0)
     enabled: bool = True
+    # false: ask for the feed uncompressed. Some servers never answer
+    # an HTTP/1.1 request that accepts gzip.
+    compressed: bool = True
     # Skip items whose headline or link matches any of these regular expressions.
     exclude: list[str] = Field(default_factory=list)
 
