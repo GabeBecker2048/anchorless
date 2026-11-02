@@ -214,7 +214,7 @@ class StudioTheme:
     # x0, x1, top, bottom, depth. The front face sits left of the screen's centre on
     # purpose: with its 12 deep top (2 px right per step back), the desk as a whole
     # reads as centred under the screen (x 213.5).
-    DESK = (112, 292, 176, 212, 12)
+    DESK = (116, 296, 176, 212, 12)
     TANK = (340, 166, 50, 30, 10)            # x, y, w, h, depth (the glass box)
 
     def __init__(self, cfg: Config, channel_name: str | None = None) -> None:
@@ -458,7 +458,8 @@ class StudioTheme:
         d.line([(x + 1, y + 1), (x + w - 1, y + 1)], fill=_mix(WATER, WHITE, 0.4))
         return img
 
-    MUG = (270, 163)
+    # The mug stands halfway back on the desk (6 of its 12 steps), not on the front edge.
+    MUG = (270, 157)
     BEACON = (136, 157, 147, 169)        # the dome on the desk: x0, y0, x1, y1 (logical)
 
     @cached_property
@@ -466,9 +467,9 @@ class StudioTheme:
         big = self._up(self.front)
         d = ImageDraw.Draw(big)
         d.fontmode = "1"
-        lw = self.lw
         f = pfont("PressStart2P-Regular", self.px(16))
-        d.text((self.L(lw // 2), self.L(194)), self.channel_name, font=f, fill=GOLD, anchor="mm")
+        fc = (self.DESK[0] + self.DESK[1]) // 2           # on the logo panel: the desk front's centre
+        d.text((self.L(fc), self.L(194)), self.channel_name, font=f, fill=GOLD, anchor="mm")
         f = pfont("Silkscreen-Bold", self.px(16))
         d.text((self.L(33), self.L(self.crawl_top + 13)), self.cfg.crawl.label.upper(), font=f,
                fill=INK, anchor="mm")
