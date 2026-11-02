@@ -294,6 +294,43 @@ class DataConfig(_Model):
     dir: str = "data"
 
 
+class FeedsConfig(_Model):
+    """Which feeds run: the built-in list, plus [[source]] entries, plus local feeds."""
+
+    # false: leave out the built-in national/world feeds (then [[source]] lists all of them).
+    builtin: bool = True
+    # Feed URLs to skip (any feed: built-in, [[source]] or local).
+    disabled: list[str] = Field(default_factory=list)
+
+
+def _private_ranges() -> list[str]:
+    return ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+            "100.64.0.0/10", "fc00::/7", "fe80::/10"]
+
+
+class AdminConfig(_Model):
+    """The settings page (/settings). Off unless a password is set - best from the
+    environment: ANCHORLESS__ADMIN__PASSWORD."""
+
+    password: str | None = None
+    # Who may open the settings page at all (CIDR ranges). Default: this machine and private networks.
+    allow_from: list[str] = Field(default_factory=_private_ranges)
+    # Reverse proxies whose X-Forwarded-For is believed (e.g. Caddy). Empty: none.
+    trusted_proxies: list[str] = Field(default_factory=list)
+    session_days: float = Field(30, gt=0, le=365)
+
+    @field_validator("allow_from", "trusted_proxies")
+    @classmethod
+    def _networks(cls, v: list[str]) -> list[str]:
+        import ipaddress
+        for net in v:
+            try:
+                ipaddress.ip_network(net, strict=False)
+            except ValueError as err:
+                raise ValueError(f"not an address or CIDR range: {net!r}") from err
+        return v
+
+
 class Config(_Model):
     channel: ChannelConfig
     location: LocationConfig = Field(default_factory=LocationConfig)
@@ -305,12 +342,14 @@ class Config(_Model):
     source: list[SourceConfig] = Field(default_factory=default_sources)
     crawl: CrawlConfig = Field(default_factory=CrawlConfig)
     extra_channel: list[ExtraChannelConfig] = Field(default_factory=list)
+    feeds: FeedsConfig = Field(default_factory=FeedsConfig)
     data: DataConfig = Field(default_factory=DataConfig)
+    admin: AdminConfig = Field(default_factory=AdminConfig)
 
     @model_validator(mode="after")
     def _has_sources(self) -> Config:
         if not any(s.enabled for s in self.source):
-            raise ValueError("no enabled [[source]] entries")
+            raise ValueError("no enabled feeds (all are off, or [feeds] builtin = false with no [[source]])")
         channels = [self.channel, *self.extra_channel]
         ids = [c.id for c in channels]
         if len(set(ids)) != len(ids):
@@ -370,41 +409,60 @@ def _renamed_keys(raw: dict[str, Any]) -> None:
         raise ConfigError("settings that moved: " + "; ".join(moved))
 
 
-def _local_sources(base: Path, sources_file: str) -> list[dict[str, Any]]:
-    path = base / sources_file
+def _local_sources(text: str, where: str) -> list[dict[str, Any]]:
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as err:
-        raise ConfigError(f"local sources file not found: {path}") from err
+        data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as err:
-        raise ConfigError(f"{path}: {err}") from err
+        raise ConfigError(f"{where}: {err}") from err
     sources = data.get("source") or []
     if not isinstance(sources, list):
-        raise ConfigError(f"{path}: expected [[source]] entries")
+        raise ConfigError(f"{where}: expected [[source]] entries")
     return [{**src, "scope": "local"} for src in sources]
 
 
-def load_config(path: str | Path | None = None, environ: dict[str, str] | None = None) -> Config:
-    """Load the config from ``path`` (or $ANCHORLESS_CONFIG, or ./config.toml if present)."""
-    environ = dict(os.environ if environ is None else environ)
-    if path is None:
-        path = environ.get("ANCHORLESS_CONFIG")
-        if path is None and Path("config.toml").exists():
-            path = "config.toml"
-    raw: dict[str, Any] = {}
-    if path is not None:
-        try:
-            raw = tomllib.loads(Path(path).read_text(encoding="utf-8"))
-        except FileNotFoundError as err:
-            raise ConfigError(f"config file not found: {path}") from err
-        except tomllib.TOMLDecodeError as err:
-            raise ConfigError(f"{path}: {err}") from err
+def env_keys(environ: dict[str, str]) -> set[tuple[str, str]]:
+    """The (section, key) pairs the environment sets: they override the file."""
+    out = set()
+    for key in environ:
+        if key.startswith(ENV_PREFIX):
+            parts = key[len(ENV_PREFIX):].lower().split("__")
+            if len(parts) == 2:
+                out.add((parts[0], parts[1]))
+    return out
+
+
+def resolve_local_path(config_path: str | Path | None, sources_file: str) -> Path:
+    return (Path(config_path).parent if config_path else Path()) / sources_file
+
+
+def parse_config(text: str, environ: dict[str, str], *, path: str | Path | None = None,
+                 local_text: str | None = None) -> Config:
+    """Validate config text (and the local feeds file's text, if it names one) without
+    touching disk - the settings page checks a change this way before writing it.
+    ``local_text`` None means: read the local feeds file from disk."""
+    try:
+        raw: dict[str, Any] = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as err:
+        raise ConfigError(f"{path or 'config'}: {err}") from err
     raw = _apply_env(raw, environ)
     _renamed_keys(raw)
+    feeds = raw.get("feeds") or {}
+    if not isinstance(feeds, dict):
+        raise ConfigError("[feeds] must be a table")
+    # The feeds: built-in ones, plus [[source]] entries, plus the local feeds file.
+    sources = [s.model_dump() for s in default_sources()] if feeds.get("builtin", True) else []
+    sources += list(raw.get("source") or [])
     sources_file = (raw.get("location") or {}).get("sources_file")
     if sources_file:
-        raw["source"] = list(raw.get("source") or [s.model_dump() for s in default_sources()])
-        raw["source"] += _local_sources(Path(path).parent if path else Path(), sources_file)
+        local_path = resolve_local_path(path, sources_file)
+        if local_text is None:
+            try:
+                local_text = local_path.read_text(encoding="utf-8")
+            except FileNotFoundError as err:
+                raise ConfigError(f"local sources file not found: {local_path}") from err
+        sources += _local_sources(local_text, str(local_path))
+    disabled = set(feeds.get("disabled") or [])
+    raw["source"] = [{**s, "enabled": False} if s.get("url") in disabled else s for s in sources]
     try:
         return Config.model_validate(raw)
     except ValidationError as err:
@@ -413,3 +471,26 @@ def load_config(path: str | Path | None = None, environ: dict[str, str] | None =
             where = ".".join(str(p) for p in e["loc"]) or "(top level)"
             lines.append(f"  {where}: {e['msg']}")
         raise ConfigError("\n".join(lines)) from err
+
+
+def config_path(environ: dict[str, str] | None = None) -> Path | None:
+    """$ANCHORLESS_CONFIG, or ./config.toml if present."""
+    environ = os.environ if environ is None else environ
+    path = environ.get("ANCHORLESS_CONFIG")
+    if path is None and Path("config.toml").exists():
+        path = "config.toml"
+    return Path(path) if path else None
+
+
+def load_config(path: str | Path | None = None, environ: dict[str, str] | None = None) -> Config:
+    """Load the config from ``path`` (or $ANCHORLESS_CONFIG, or ./config.toml if present)."""
+    environ = dict(os.environ if environ is None else environ)
+    if path is None:
+        path = config_path(environ)
+    text = ""
+    if path is not None:
+        try:
+            text = Path(path).read_text(encoding="utf-8")
+        except FileNotFoundError as err:
+            raise ConfigError(f"config file not found: {path}") from err
+    return parse_config(text, environ, path=path)

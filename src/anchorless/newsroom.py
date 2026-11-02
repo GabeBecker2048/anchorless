@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -35,6 +36,7 @@ class Newsroom:
         self.last_refresh: datetime | None = None
         self.last_error: str | None = None
         self.changed = asyncio.Event()
+        self._wake = asyncio.Event()
 
     async def refresh(self, now: datetime | None = None) -> Rundown:
         now = now or datetime.now(UTC)
@@ -91,7 +93,6 @@ class Newsroom:
 
     async def run(self) -> None:
         """Refresh forever. Fetching is cheap, so it runs even with no viewers."""
-        interval = self.cfg.rundown.refresh_minutes * 60
         while True:
             try:
                 await self.refresh()
@@ -99,7 +100,14 @@ class Newsroom:
             except Exception as err:  # never let one bad refresh stop the channel
                 self.last_error = f"{type(err).__name__}: {err}"
                 log.exception("refresh failed")
-            await asyncio.sleep(interval)
+            # Sleep until the next refresh, or until settings change (wake()).
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self._wake.wait(), self.cfg.rundown.refresh_minutes * 60)
+            self._wake.clear()
+
+    def wake(self) -> None:
+        """Refresh now (the feeds or the rundown settings changed)."""
+        self._wake.set()
 
     def feed_status(self) -> list[dict]:
         out = []
