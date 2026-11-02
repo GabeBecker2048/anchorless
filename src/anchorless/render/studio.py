@@ -332,18 +332,18 @@ class StudioTheme:
 
         # The empty chair, modelled in 3D and projected like everything else on the
         # floor (a step toward the back is 2 px right and 1 px up). The backrest is
-        # a panel 3 deep. The arms sit either side of it, the same gap from its
-        # edges, and run 6 forward from it toward the viewer (down and left).
+        # a panel 3 deep. The arms sit right against either side of it and run 6
+        # forward from it toward the viewer (down and left).
         cx = cx + 5
-        bl, br, btop, bbot = cx - 17, cx + 17, 132, 176         # the backrest's front face
+        bl, br, btop, bbot = cx - 19, cx + 19, 130, 176         # the backrest's front face
         thick = 3
         d.rounded_rectangle([bl + 2 * thick, btop - thick, br + 2 * thick, bbot - thick], radius=9,
                             fill=CHAIR_DARK, outline=INK)
         d.rounded_rectangle([bl, btop, br, bbot], radius=9, fill=CHAIR, outline=INK)
         d.rounded_rectangle([bl + 2, btop + 4, bl + 4, bbot - 8], radius=1, fill=CHAIR_HI)   # lit edge
-        for y0 in (138, 152):                                                      # cushion seams
-            d.rounded_rectangle([cx - 11, y0, cx + 11, y0 + 11], radius=4, outline=CHAIR_DARK)
-        arm_w, arm_len, gap, arm_y = 7, 6, 2, 154       # arm_y: top of an arm where it meets the back
+        for y0 in (136, 151):                                                      # cushion seams
+            d.rounded_rectangle([cx - 13, y0, cx + 13, y0 + 12], radius=4, outline=CHAIR_DARK)
+        arm_w, arm_len, gap, arm_y = 7, 6, 0, 154       # arm_y: top of an arm where it meets the back
         for rear_x in (bl - gap - arm_w, br + gap):     # rear ends: same gap each side of the back
             fx, fy = rear_x - 2 * arm_len, arm_y + arm_len      # the front end, toward the viewer
             _box(d, fx + 2, fy + 3, fx + 4, fy + 20, INK)       # post down to the seat
