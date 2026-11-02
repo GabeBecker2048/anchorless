@@ -229,6 +229,13 @@ function renderAlerts(s) {
 function renderFeeds(s) {
   const root = $("feeds");
   root.replaceChildren();
+  if (!s.feeds) {           // [web] public_status = "summary": counts only
+    const c = s.feed_count;
+    $("feeds-sub").textContent = c.failing ? `${c.failing} failing` : `${c.total} ok`;
+    $("feeds-sub").className = "sub" + (c.failing ? " err" : "");
+    root.append(el("div", "empty", `${c.total} feeds, ${c.total - c.failing} working.`));
+    return;
+  }
   const feeds = [...s.feeds].sort((a, b) => (!!b.error - !!a.error) || a.name.localeCompare(b.name));
   const bad = feeds.filter((f) => f.error).length;
   $("feeds-sub").textContent = bad ? `${bad} failing` : `${feeds.length} ok`;

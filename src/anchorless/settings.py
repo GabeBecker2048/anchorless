@@ -84,10 +84,14 @@ SECTIONS: list[tuple[str, str, list[tuple[str, str, str, str]]]] = [
          "viewers of a channel that is already on don't count. -1 = no limit, 0 = nobody can watch.", "live"),
         ("stream.max_viewers", "Viewers at once", "All channels together: TV, web page and iPhones. "
          "-1 = no limit, 0 = nobody can watch.", "live"),
+        ("stream.max_viewers_per_client", "Viewers per address", "So one client can't take every slot. "
+         "A household behind one router, or a TV server like Jellyfin, is one address. -1 = no limit.", "live"),
     ]),
     ("https", "https", [
         ("web.require_https", "Viewer page needs https", "Suggested: on, if you have an https address "
          "(a reverse proxy). TV tuners are not affected: they always use plain http.", "live"),
+        ("web.public_status", "Public status detail", "\"full\": the viewer page and /health list each feed "
+         "by name and site. \"summary\": counts only. Full URLs and error details are only ever shown here.", "live"),
         ("admin.require_https", "Settings page needs https", "Suggested: on (the default) - plain http "
          "would send your password unencrypted.", "file"),
     ]),

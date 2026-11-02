@@ -52,6 +52,17 @@ host = "0.0.0.0"
 port = 9798
 lead_seconds = 10             # rendered ahead for a new viewer (Samsung TVs buffer ~10 s)
 idle_seconds = 60             # stop encoding this long after the last viewer leaves
+max_sessions = 2              # channels encoding at once (~30% of a CPU core each); -1 = no limit,
+                              # 0 = listed but nobody can watch. Viewers of a channel already on don't count.
+max_viewers = -1              # viewers at once, all channels (TV, web, iPhone); -1 = no limit, 0 = nobody
+max_viewers_per_client = -1   # viewers from one address; -1 = no limit. Jellyfin (all its viewers
+                              # come from it) and a household behind one router are one address each.
+
+[web]                         # the viewer page; the TV side (playlist, guide, streams) is never https-only
+require_https = false         # true: viewer page only over https. Suggested if you have https - and
+                              # keep [admin] require_https on too.
+public_status = "full"        # "full": /health and the viewer page list feeds by name and site;
+                              # "summary": counts only. URLs and error details: settings page only.
 
 [rundown]
 refresh_minutes = 10          # how often the sources are fetched

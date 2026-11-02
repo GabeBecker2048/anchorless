@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -18,6 +19,25 @@ from .store import Store
 log = logging.getLogger(__name__)
 
 STALE_ALERT = timedelta(minutes=15)
+
+
+def short_error(err: str | None) -> str | None:
+    """A feed or refresh error for public pages: what went wrong, never a URL."""
+    if not err:
+        return None
+    kind, _, msg = err.partition(":")
+    if kind == "HTTPStatusError":
+        m = re.search(r"\b([1-5]\d\d)\b", msg)
+        return f"HTTP {m.group(1)}" if m else "HTTP error"
+    if "Timeout" in kind:
+        return "timed out"
+    if kind == "BlockedURL":
+        return "blocked: private network"
+    if kind in ("ConnectError", "RemoteProtocolError"):
+        return "could not connect"
+    if kind == "ValueError":
+        return "not a feed"
+    return kind if kind.isidentifier() else "error"
 
 
 class Newsroom:

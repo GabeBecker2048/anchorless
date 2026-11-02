@@ -17,7 +17,6 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 let orig = null;     // the settings as loaded
 let cur = null;      // what the page shows now (edited)
-let feedStatus = {}; // url -> {stories, error} from /api/status
 
 async function api(method, url, body) {
   const r = await fetch(url, { method, headers: { "Content-Type": "application/json", "X-Anchorless": "1" },
@@ -77,10 +76,6 @@ async function load() {
   $("logout").hidden = false;
   $("state").replaceChildren();
   $("main").hidden = false;
-  try {
-    const s = await (await fetch("/api/status")).json();
-    feedStatus = Object.fromEntries(s.feeds.map((f) => [f.host + "|" + f.name, f]));
-  } catch (e) { feedStatus = {}; }
   render();
 }
 
@@ -267,10 +262,8 @@ function renderSegments() {
 }
 
 // ---------- feeds ----------
-function statusFor(f) {
-  let host = ""; try { host = new URL(f.url).hostname; } catch (e) { /* bad url */ }
-  return feedStatus[host + "|" + f.name];
-}
+// The full status (exact errors), which only this page gets.
+function statusFor(f) { return cur.feed_status?.[f.url]; }
 
 function renderFeeds() {
   const wrap = el("div", { class: "field" }, el("label", { class: "l" }, "Feeds"));
@@ -299,7 +292,8 @@ function feedRow(f, forcedOff) {
   const info = el("div", {}, el("div", {}, f.name, " ", el("span", { class: "row tag" + (st?.error ? " bad" : ""), style: "padding:1px 5px;display:inline;border:0" },
       f.origin === "local" ? "local" : f.scope, f.category !== "general" ? " · " + f.category : "",
       st ? (st.error ? " · FAILING" : ` · ${st.stories} stories`) : "")),
-    el("div", { class: "u" }, f.url));
+    el("div", { class: "u" }, f.url),
+    st?.error ? el("div", { class: "u err" }, st.error) : null);
   const acts = el("div", { class: "acts" });
   if (f.origin !== "builtin") {
     acts.append(el("button", { class: "btn small", onclick: () => editFeed(f, row) }, "EDIT"),
