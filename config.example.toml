@@ -84,6 +84,8 @@ window_minutes = 30           # ...within this long of its first appearance
 cooldown_minutes = 20         # at most one alert per this long
 crawl_tag_minutes = 60        # how long it keeps the red BREAKING tag in the crawl
 title_prefixes = ["BREAKING:", "BREAKING NEWS:"]
+sound = "auto"                # "auto", "chiptune", "news", "none", or a sound file's path
+sound_volume = 0.8            # the music ducks under it either way
 
 [theme]
 name = "studio"               # "studio" (pixel-art news set) or "classic" (cable-news pages)

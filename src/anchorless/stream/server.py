@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 
 from aiohttp import web
 
-from .. import __version__
+from .. import __version__, sound
 from ..config import Config
 from ..newsroom import Newsroom
 from ..render import make_theme
@@ -104,7 +104,8 @@ class Session:
                         log.info("%.0f s ahead after %.2f s", self.lead, self.lead_after)
                     time.sleep(min(1 / self.fps, ahead - self.lead + 0.001))
                     continue
-                self.encoder.write_blocking(self.playout.next_frame())
+                frame = self.playout.next_frame()
+                self.encoder.write_blocking(frame, self.playout.next_audio())
                 self.frames += 1
         except OSError as err:
             reason = f"encoder input closed ({err.strerror or err})"
@@ -145,6 +146,7 @@ class Channel:
         self.theme = make_theme(cfg, info.theme, info.name)
         if hasattr(self.theme, "warm"):
             self.theme.warm()
+        sound.sting(cfg.breaking.sound, getattr(self.theme, "kind", "studio"))   # synthesize it now
         self.clients: set[Client] = set()
         self.session: Session | None = None
         self.idle_handle: asyncio.TimerHandle | None = None

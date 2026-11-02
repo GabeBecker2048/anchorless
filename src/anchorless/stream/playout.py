@@ -14,6 +14,7 @@ from typing import Any, Protocol
 
 from PIL import Image, ImageDraw
 
+from .. import sound
 from ..config import Config
 from ..models import Cluster, Rundown
 from ..render import make_theme
@@ -37,6 +38,7 @@ class Shot:
     frames: int
     fade_in: bool = True
     alert: bool = False       # part of a breaking-news alert (the studio goes red)
+    sound: bytes | None = None    # a sound effect that starts with this shot
 
     def image(self, i: int) -> Image.Image:
         raise NotImplementedError
@@ -105,6 +107,11 @@ class Playout:
         self._just_broke: set[str] = set()
         self._alert_seen = 0
         self.raw_mode = frame_format(cfg)      # "RGB", or "BGRX" for GPU colour conversion
+        sting_pcm = sound.sting(cfg.breaking.sound, getattr(self.theme, "kind", "studio"))
+        self.sting = sound.scale(sting_pcm, cfg.breaking.sound_volume) if sting_pcm else None
+        self._sfx: bytes | None = None          # the effect playing now, and where we are in it
+        self._sfx_pos = 0
+        self._samples_out = 0
 
     def seconds(self, s: float) -> int:
         return max(1, round(s * self.fps))
@@ -157,10 +164,15 @@ class Playout:
         self.on_air = f"BREAKING: {cluster.lead.title}"
         now = self.now()
         title = t.breaking_title(flash=False, now=now)
+        # The sting starts with the alert's first shot.
         if self._last is not None:
-            yield Wipe(self.seconds(0.5), fade_in=False, alert=True, src=self._last, dst=title, bar=t.px(16))
-        yield Flash(self.seconds(3), fade_in=False, alert=True, a=title, b=t.breaking_title(flash=True, now=now),
-                    period=self.seconds(0.25))
+            yield Wipe(self.seconds(0.5), fade_in=False, alert=True, sound=self.sting, src=self._last, dst=title,
+                       bar=t.px(16))
+            first_sound = None
+        else:
+            first_sound = self.sting
+        yield Flash(self.seconds(3), fade_in=False, alert=True, sound=first_sound, a=title,
+                    b=t.breaking_title(flash=True, now=now), period=self.seconds(0.25))
         page = t.story_page(cluster, "BREAKING NEWS", 1, 1, now, breaking=True)
         yield Wipe(self.seconds(0.4), fade_in=False, alert=True, src=title, dst=page, bar=t.px(16))
         # The alarm keeps going for a few seconds into the story, then calms down.
@@ -174,6 +186,8 @@ class Playout:
             self._from = self._last
             self._shot = next(self._shots)
             self._shot_i = 0
+            if self._shot.sound:
+                self._sfx, self._sfx_pos = self._shot.sound, 0
         shot, i = self._shot, self._shot_i
         img = shot.image(i)
         fade = self.seconds(self.cfg.rundown.transition_seconds) if self.cfg.rundown.transition_seconds else 0
@@ -204,6 +218,20 @@ class Playout:
         out = self.theme.overlay(c, self.frame_no, self.fps, shot.alert)
         self.frame_no += 1
         return out
+
+    def next_audio(self) -> bytes:
+        """The effects track for the frame just drawn: 48 kHz stereo s16le, silence
+        unless a sting is playing. Sample counts add up exactly over time at any fps."""
+        n = (self.frame_no * sound.RATE) // self.fps - self._samples_out
+        self._samples_out += n
+        size = n * 4
+        if self._sfx is None:
+            return bytes(size)
+        chunk = self._sfx[self._sfx_pos:self._sfx_pos + size]
+        self._sfx_pos += size
+        if self._sfx_pos >= len(self._sfx):
+            self._sfx = None
+        return chunk + bytes(size - len(chunk))
 
     def next_frame(self) -> bytes:
         """The next frame as raw bytes, in the layout the encoder expects."""
