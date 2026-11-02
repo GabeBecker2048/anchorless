@@ -51,6 +51,12 @@ def test_moved_settings_say_where_they_went(tmp_path):
     p.write_text('[channel]\nnumber = "98"\n[theme]\nname = "studio"\n')
     with pytest.raises(ConfigError, match="now \\[channel\\] theme.*now channel_number"):
         load_config(p, environ={})
+    p.write_text(MINIMAL + '[theme]\ncrawl_label = "NEWS"\ncrawl_speed = 80\n')
+    with pytest.raises(ConfigError, match="crawl_label is now \\[crawl\\] label.*crawl_speed is now \\[crawl\\] speed"):
+        load_config(p, environ={})
+    p.write_text(MINIMAL + '[crawl]\nlabel = "WIRE"\nspeed = 80\n')
+    cfg = load_config(p, environ={})
+    assert cfg.crawl.label == "WIRE" and cfg.crawl.speed == 80
 
 
 def test_example_config_is_valid():

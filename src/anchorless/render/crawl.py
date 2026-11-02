@@ -18,7 +18,7 @@ class Crawl:
         self.style = theme.crawl_style()
         _, _, self.view_w, self.h = theme.crawl_rect
         # Whole pixels per frame, so the text never shimmers between pixels.
-        self.step = max(1, round(theme.cfg.theme.crawl_speed * theme.s / fps))
+        self.step = max(1, round(theme.cfg.crawl.speed * theme.s / fps))
         self.items = list(items)
         self.strip, self.loop_w = self._draw(self.items or [("Stay tuned for the latest headlines", False)])
         self.offset = 0
