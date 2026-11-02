@@ -330,15 +330,19 @@ class StudioTheme:
         d = ImageDraw.Draw(img)
         cx = lw // 2
 
-        # The empty chair: a tall office chair, turned a little, in isometric.
-        # The armrests flank the backrest with the same gap on each side; the left one
-        # is drawn first so the backrest hides the part of it that runs behind.
-        iso_box(d, cx - 22, 152, 6, 18, 3, CHAIR_HI, CHAIR_DARK, CHAIR_TOP)
-        iso_box(d, cx - 15, 124, 28, 46, 4, CHAIR, CHAIR_DARK, CHAIR_TOP)
-        _box(d, cx - 14, 125, cx - 12, 169, CHAIR_HI)                       # lit edge
-        d.rounded_rectangle([cx - 9, 130, cx + 9, 150], radius=3, outline=CHAIR_DARK)   # cushion seams
-        d.line([(cx - 9, 158), (cx + 9, 158)], fill=CHAIR_DARK)
-        iso_box(d, cx + 14, 152, 6, 18, 3, CHAIR, CHAIR_DARK, CHAIR_TOP)
+        # The empty chair: a rounded office-chair back, then the armrests in front of it.
+        back = [cx - 17, 132, cx + 17, 176]
+        d.rounded_rectangle([back[0] + 5, back[1] - 3, back[2] + 5, back[3] - 3], radius=9,
+                            fill=CHAIR_DARK, outline=INK)                              # its thickness
+        d.rounded_rectangle(back, radius=9, fill=CHAIR, outline=INK)
+        d.rounded_rectangle([back[0] + 2, back[1] + 4, back[0] + 4, back[3] - 8], radius=1,
+                            fill=CHAIR_HI)                                              # lit edge
+        for y0 in (138, 152):                                                           # cushion seams
+            d.rounded_rectangle([cx - 11, y0, cx + 11, y0 + 11], radius=4, outline=CHAIR_DARK)
+        for ax in (cx - 25, cx + 15):                                                   # armrests
+            _box(d, ax + 3, 161, ax + 6, 176, INK)                                      # post
+            _box(d, ax + 4, 161, ax + 5, 176, (70, 70, 90))
+            iso_box(d, ax, 157, 10, 4, 4, CHAIR_HI, CHAIR_DARK, CHAIR_TOP)             # pad
 
         # The desk.
         dx0, dx1, dtop, dbot, depth = self.DESK
@@ -352,9 +356,12 @@ class StudioTheme:
         _box(d, cx - 43, dtop + 9, cx + 43, dtop + 10, RED)
 
         # On the desk: the breaking-news beacon (off), papers, the mic, coffee.
-        bx = dx0 + 16
-        iso_box(d, bx, dtop - 5, 8, 3, 2, (60, 60, 76), (40, 40, 52), (90, 90, 110))
-        d.chord([bx + 1, dtop - 13, bx + 9, dtop - 3], 180, 360, fill=RED_DARK, outline=INK)
+        x0, y0, x1, y1 = self.BEACON
+        iso_box(d, x0 - 2, y1, x1 - x0 + 4, 3, 2, (60, 60, 76), (40, 40, 52), (90, 90, 110))   # base
+        d.rounded_rectangle([x0, y0, x1, y1 + 1], radius=4, fill=RED_DARK, outline=INK)       # dome
+        _box(d, x0 + 2, y0 + 3, x0 + 3, y1 - 2, (190, 60, 80))                                 # glint
+        for yy in range(y0 + 4, y1, 3):                                                        # fresnel ribs
+            d.line([(x0 + 5, yy), (x1 - 2, yy)], fill=(110, 16, 34))
         iso_box(d, dx0 + 34, dtop - 4, 22, 2, 4, WHITE, (200, 200, 216), (230, 230, 244))
         iso_box(d, dx0 + 36, dtop - 7, 20, 2, 4, (236, 236, 248), (190, 190, 206), WHITE)
         _box(d, cx - 1, dtop - 18, cx + 1, dtop - 4, (60, 60, 76))          # mic stand
@@ -392,6 +399,7 @@ class StudioTheme:
         return img
 
     MUG = (270, 163)
+    BEACON = (134, 158, 145, 170)        # the dome on the desk: x0, y0, x1, y1 (logical)
 
     @cached_property
     def front_big(self) -> Image.Image:
@@ -659,8 +667,8 @@ class StudioTheme:
         pulse = 0.5 + 0.5 * math.sin(t * 2 * math.pi * 1.5)
         canvas = Image.blend(canvas, self._red, 0.10 + 0.20 * pulse)
         # Two beams sweeping from the beacon on the desk (drawn as a mask, then pasted).
-        dx0, _, dtop, _, _ = self.DESK
-        bx, by = dx0 + 21, dtop - 9
+        x0, y0, x1, y1 = self.BEACON
+        bx, by = (x0 + x1) / 2, y0 + 5
         mask = Image.new("L", (self.lw, self.lh), 0)
         md = ImageDraw.Draw(mask)
         ang = t * 2 * math.pi * 1.2
@@ -673,12 +681,13 @@ class StudioTheme:
         box = big.getbbox()
         if box:
             canvas.paste(self._beam.crop(box), box[:2], big.crop(box))
-        # The lit dome.
+        # The lit dome, with a bright band where the lamp inside is pointing.
         d = ImageDraw.Draw(canvas)
         L = self.L
-        d.chord([L(bx - 4), L(by - 4), L(bx + 4), L(by + 6)], 180, 360, fill=(255, 70, 90), outline=INK,
-                width=max(1, L(1)))
-        d.rectangle([L(bx - 1), L(by - 2), L(bx), L(by - 1)], fill=(255, 220, 220))
+        d.rounded_rectangle([L(x0), L(y0), L(x1 + 1) - 1, L(y1 + 2) - 1], radius=L(4), fill=(255, 70, 90),
+                            outline=INK, width=max(1, L(1) // 2))
+        band = x0 + 2 + (math.cos(ang) * 0.5 + 0.5) * (x1 - x0 - 5)
+        d.rectangle([L(band), L(y0 + 2), L(band + 2) - 1, L(y1 - 1) - 1], fill=(255, 230, 230))
         lit = int(t * 4) % 2 == 0
         canvas.paste(self._on_air_lit if lit else self._on_air_off, (L(self.lw - 59), L(23)))
         return canvas
