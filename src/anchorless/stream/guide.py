@@ -18,6 +18,7 @@ class ChannelInfo:
     name: str
     theme: str
     path: str          # the stream's URL path
+    in_guide: bool = True   # listed in the M3U and XMLTV (false: web page only)
 
 
 def channel_list(cfg: Config) -> list[ChannelInfo]:
@@ -25,13 +26,15 @@ def channel_list(cfg: Config) -> list[ChannelInfo]:
     c = cfg.channel
     out = [ChannelInfo(c.id, c.number, c.name, cfg.theme.name, "/live.ts")]
     for x in cfg.extra_channel:
-        out.append(ChannelInfo(x.id, x.number, x.name, x.theme, f"/live/{x.id}.ts"))
+        out.append(ChannelInfo(x.id, x.number, x.name, x.theme, f"/live/{x.id}.ts", x.in_guide))
     return out
 
 
 def playlist(cfg: Config, host: str) -> str:
     lines = ["#EXTM3U"]
     for ch in channel_list(cfg):
+        if not ch.in_guide:
+            continue
         lines.append(f'#EXTINF:-1 tvg-id="{ch.id}" tvg-chno="{ch.number}" tvg-name="{ch.name}",{ch.name}')
         lines.append(f"http://{host}{ch.path}")
     return "\n".join(lines) + "\n"
@@ -67,7 +70,7 @@ def _slots(cfg: Config, now: datetime) -> list[tuple[datetime, datetime]]:
 def guide(cfg: Config, now: datetime) -> str:
     """The newscast in back-to-back blocks (see ``_slots``) on every channel."""
     c = cfg.channel
-    channels = channel_list(cfg)
+    channels = [ch for ch in channel_list(cfg) if ch.in_guide]
     slots = _slots(cfg, now)
     out = ['<?xml version="1.0" encoding="UTF-8"?>', "<tv>"]
     for ch in channels:

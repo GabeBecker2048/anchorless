@@ -240,6 +240,9 @@ class ExtraChannelConfig(_Model):
     number: str
     id: str
     theme: Literal["studio", "classic"] = "classic"
+    # false: only on the web page, left out of /playlist.m3u and /guide.xml (so a
+    # TV tuner never picks it up). For trying a look without adding a TV channel.
+    in_guide: bool = True
 
     @field_validator("number", mode="before")
     @classmethod
