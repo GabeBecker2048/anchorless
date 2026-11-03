@@ -13,7 +13,9 @@ services:
     user: "1000:1000"              # owner of ./data on the host
     ports:
       - "9798:9798"
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false        # optional: start without one
     environment:
       ANCHORLESS_CONFIG: /config/config.toml
       ANCHORLESS__VIDEO__ENCODER: vaapi
