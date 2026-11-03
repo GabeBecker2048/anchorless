@@ -93,3 +93,25 @@ def test_bad_exclude_pattern(tmp_path):
     p.write_text(MINIMAL + '[[source]]\nname = "X"\nurl = "https://x"\nexclude = ["("]\n')
     with pytest.raises(ConfigError, match="bad pattern"):
         load_config(p, environ={})
+
+
+def test_readme_shows_the_example_compose_file_verbatim():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    compose = (root / "deploy" / "docker-compose.example.yml").read_text()
+    assert compose in (root / "README.md").read_text()
+
+
+def test_init_writes_a_working_config(tmp_path):
+    from anchorless.config import load_config
+    from anchorless.examples import init
+
+    written = init(tmp_path)
+    assert [p.name for p in written] == ["config.toml", "local.example.toml"]
+    cfg = load_config(tmp_path / "config.toml", environ={})
+    assert cfg.data.dir == str(tmp_path / "data")       # data sits next to the config
+    import pytest
+
+    with pytest.raises(FileExistsError):
+        init(tmp_path)

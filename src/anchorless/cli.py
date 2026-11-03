@@ -1,4 +1,4 @@
-"""Command line: anchorless fetch | render | preview | serve."""
+"""Command line: anchorless init | serve | fetch | render | preview | ..."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -114,6 +115,30 @@ def _hash_password(from_stdin: bool) -> int:
     return 0
 
 
+def _init(folder: Path, force: bool) -> int:
+    from .examples import init
+
+    try:
+        written = init(folder, force)
+    except FileExistsError as err:
+        print(err, file=sys.stderr)
+        return 1
+    for path in written:
+        print(f"wrote {path}")
+    here = "" if folder.resolve() == Path.cwd() else f"cd {folder} && "
+    print(f"""
+Next:
+  1. Look through config.toml: every setting is explained there. The defaults work.
+     Local news: set ANCHORLESS__LOCATION__CITY and list your outlets' feeds
+     (see local.example.toml).
+  2. Start it:   {here}anchorless serve
+  3. Watch at http://localhost:9798/ or add http://<this host>:9798/playlist.m3u
+     to Jellyfin, Plex or any IPTV player as an M3U tuner.
+
+Needs ffmpeg on the PATH.""")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="anchorless", description="A 24/7 text newscast for IPTV.")
     parser.add_argument("--version", action="version", version=f"anchorless {__version__}")
@@ -134,7 +159,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--breaking", action="store_true", help="start with a (sample) breaking-news alert")
     p.add_argument("-t", "--theme", choices=["studio", "classic", "classic-light", "classic-dark"], help="default: the configured theme")
 
-    sub.add_parser("serve", help="run the channel: /playlist.m3u, /guide.xml, /live.ts, /health")
+    p = sub.add_parser("init", help="write a starter config.toml (and local.example.toml) to get going")
+    p.add_argument("folder", nargs="?", default=".", help="where to write it (default: here)")
+    p.add_argument("--force", action="store_true", help="replace an existing config.toml")
+    p = sub.add_parser("serve", help="run the channel: /playlist.m3u, /guide.xml, /live.ts, /health")
+    p.add_argument("--init", action="store_true",
+                   help="first write a starter config if there is none (the container image does this)")
     sub.add_parser("check-config", help="validate the config and print it")
     p = sub.add_parser("headlines", help="each version of every multi-outlet story, scored (consensus headline)")
     p.add_argument("--dump", help="append the stories (not local ones) to this JSONL file, for calibration")
@@ -150,6 +180,16 @@ def main(argv: list[str] | None = None) -> int:
         logging.getLogger("httpx").setLevel(logging.WARNING)
     if args.command == "hash-password":           # needs no config: you run it while writing one
         return _hash_password(args.stdin)
+    if args.command == "init":
+        return _init(Path(args.folder), args.force)
+    if args.command == "serve" and args.init:
+        target = Path(args.config or os.environ.get("ANCHORLESS_CONFIG") or "config.toml")
+        if not target.exists():
+            from .examples import init
+
+            init(target.parent, filename=target.name)
+            logging.getLogger("anchorless").info("wrote a starter config to %s", target)
+        args.config = str(target)
     try:
         cfg = load_config(args.config)
         cfg_path = Path(args.config) if args.config else config_path()

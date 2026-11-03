@@ -1,7 +1,8 @@
 name: release
 
-# Pushing a tag vX.Y.Z (scripts/release.sh does it) publishes that version:
-# the container image to ghcr.io and a GitHub release with its CHANGELOG entry.
+# Pushing a tag vX.Y.Z (scripts/release.sh does it) publishes that version: the
+# package to PyPI, the container image to ghcr.io, and a GitHub release with its
+# CHANGELOG entry. No tokens: PyPI trusts this workflow (trusted publishing).
 on:
   push:
     tags: ["v*.*.*"]
@@ -10,18 +11,14 @@ permissions:
   contents: read
 
 jobs:
-  release:
+  check:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      contents: write      # create the GitHub release
-      packages: write      # push to ghcr.io
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: Check the tag matches pyproject.toml and has a CHANGELOG entry
+      - name: The tag matches pyproject.toml and has a CHANGELOG entry
         run: |
           version="${GITHUB_REF_NAME#v}"
           grep -qE "^version = \"${version}\"$" pyproject.toml \
@@ -31,14 +28,47 @@ jobs:
             on && /^## / {exit}
             on {print}' CHANGELOG.md | sed -e '/./,$!d' > notes.md
           test -s notes.md || { echo "::error::no '## ${version}' section in CHANGELOG.md"; exit 1; }
-          echo "VERSION=${version}" >> "$GITHUB_ENV"
-
       - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run pytest -q
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notes
+          path: notes.md
 
+  pypi:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/anchorless/
+    permissions:
+      id-token: write      # trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  image:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      packages: write      # push to ghcr.io
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -63,7 +93,23 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+  github-release:
+    needs: [pypi, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write      # create the release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: notes
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "anchorless ${VERSION}" --notes-file notes.md --verify-tag
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "anchorless ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
