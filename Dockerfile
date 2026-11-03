@@ -1,4 +1,19 @@
 # Anchorless: a 24/7 text newscast for IPTV.
+
+# Build stage: uv installs Anchorless and its dependencies into /app/.venv. Only
+# that venv is copied into the image, so uv itself (~57 MB) isn't shipped.
+FROM python:3.12-slim AS build
+COPY --from=ghcr.io/astral-sh/uv:0.12.4 /uv /usr/local/bin/uv
+WORKDIR /app
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+COPY README.md LICENSE config.example.toml local.example.toml ./
+COPY src ./src
+# --no-editable: installed like a wheel (example configs included), so the venv
+# doesn't need the source tree next to it.
+RUN uv sync --frozen --no-dev --no-editable
+
 FROM python:3.12-slim
 
 # ffmpeg, plus VA-API drivers for hardware encoding (Intel: iHD, AMD: Mesa).
@@ -9,17 +24,9 @@ RUN sed -i 's/^Components: main$/Components: main non-free non-free-firmware/' /
        $([ "$(dpkg --print-architecture)" = amd64 ] && echo intel-media-va-driver-non-free) \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:0.12.4 /uv /usr/local/bin/uv
-
-WORKDIR /app
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
-COPY pyproject.toml uv.lock README.md LICENSE config.example.toml local.example.toml ./
-RUN uv sync --frozen --no-dev --no-install-project
-COPY src ./src
-RUN uv sync --frozen --no-dev
-
 RUN useradd --system --uid 10001 --home /data anchorless \
     && mkdir -p /data /config && chown anchorless /data /config
+COPY --from=build /app/.venv /app/.venv
 USER anchorless
 ENV PATH="/app/.venv/bin:$PATH" ANCHORLESS_CONFIG=/config/config.toml ANCHORLESS__DATA__DIR=/data PYTHONUNBUFFERED=1
 VOLUME /data /config

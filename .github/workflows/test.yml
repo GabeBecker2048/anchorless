@@ -43,6 +43,10 @@ jobs:
           push: false
           tags: anchorless:ci
           load: true
+      - name: The image ships no build tools, only the app
+        run: |
+          docker run --rm --entrypoint sh anchorless:ci -c '! command -v uv && test ! -d /app/src && anchorless --version'
+          docker image ls anchorless:ci --format 'image size: {{.Size}}'
       - name: The compose file's first start writes a config and serves
         run: |
           mkdir -p /tmp/ci/config /tmp/ci/data && cd /tmp/ci
