@@ -3,10 +3,10 @@
 [![PyPI](https://img.shields.io/pypi/v/anchorless)](https://pypi.org/project/anchorless/)
 [![Python versions](https://img.shields.io/pypi/pyversions/anchorless)](https://pypi.org/project/anchorless/)
 [![Docker image](https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker&logoColor=white)](https://github.com/GabeBecker2048/anchorless/pkgs/container/anchorless)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/GabeBecker2048/anchorless/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![CI](https://github.com/GabeBecker2048/anchorless/actions/workflows/test.yml/badge.svg)](https://github.com/GabeBecker2048/anchorless/actions/workflows/test.yml)
 
-![The Studio look: an empty pixel-art news set. Headlines play on the big screen behind the desk, then a breaking-news alert turns the studio red](https://raw.githubusercontent.com/GabeBecker2048/anchorless/main/docs/studio.gif)
+![The Studio look: an empty pixel-art news set. Headlines play on the big screen behind the desk, then a breaking-news alert turns the studio red](docs/studio.gif)
 
 <sub>Recorded from the real playout, sped up. The headlines and outlets are made up.</sub>
 
@@ -91,11 +91,11 @@ XMLTV guide (`http://<host>:9798/guide.xml`).
 
 ## More
 
-- [The guide](https://github.com/GabeBecker2048/anchorless/blob/main/docs/guide.md): Jellyfin setup, themes and channels, the settings
+- [The guide](docs/guide.md): Jellyfin setup, themes and channels, the settings
   page, hosting publicly, and configuration
-- [`config.example.toml`](https://github.com/GabeBecker2048/anchorless/blob/main/config.example.toml): every setting, explained (what `anchorless init` writes)
-- [SECURITY.md](https://github.com/GabeBecker2048/anchorless/blob/main/SECURITY.md): reporting a vulnerability
-- [CHANGELOG.md](https://github.com/GabeBecker2048/anchorless/blob/main/CHANGELOG.md): what changed in each release
+- [`config.example.toml`](config.example.toml): every setting, explained (what `anchorless init` writes)
+- [SECURITY.md](SECURITY.md): reporting a vulnerability
+- [CHANGELOG.md](CHANGELOG.md): what changed in each release
 
 Anchorless doesn't include music: point it at a folder of MP3s you have the
 right to play (`[audio] music_dir`), or it runs with just its own sound effects.
@@ -104,4 +104,4 @@ right to play (`[audio] music_dir`), or it runs with just its own sound effects.
 
 MIT. The bundled fonts are under the SIL Open Font License and the bundled
 [mpegts.js](https://github.com/xqq/mpegts.js) player under Apache 2.0. Headlines
-belong to their outlets; see [Sources and fair use](https://github.com/GabeBecker2048/anchorless/blob/main/docs/guide.md#sources-and-fair-use).
+belong to their outlets; see [Sources and fair use](docs/guide.md#sources-and-fair-use).
