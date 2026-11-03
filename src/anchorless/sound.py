@@ -203,8 +203,11 @@ def news() -> bytes:
 
 def decode_file(path: str) -> bytes:
     """A sound file of your own, as 48 kHz stereo s16le (ffmpeg decodes it)."""
-    r = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-t", "15", "-f", "s16le", "-ac", "2",
-                        "-ar", str(RATE), "pipe:1"], capture_output=True, check=False)
+    try:
+        r = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-t", "15", "-f", "s16le", "-ac", "2",
+                            "-ar", str(RATE), "pipe:1"], capture_output=True, check=False)
+    except OSError as err:                     # no ffmpeg on the PATH
+        raise ValueError(f"cannot read sound file {path}: {err}") from err
     if r.returncode != 0 or not r.stdout:
         raise ValueError(f"cannot read sound file {path}: {r.stderr.decode(errors='replace').strip()[:200]}")
     return r.stdout
