@@ -36,11 +36,13 @@ Visual changes (anything in `render/`) can't be judged from tests: render frames
 - Security behaviour is documented in SECURITY.md and the guide's "Hosting publicly" checklist: keep them true when changing `netguard.py`, `admin.py`, `web.py` or the `[stream]` limits.
 - No inline script or style in the web pages (the CSP forbids it).
 
-## Releasing
+## Changes and releases
 
-1. Bump `version` in `pyproject.toml` (the only place it lives; `anchorless.__version__` reads it), run `uv lock`.
-2. Add `## X.Y.Z — YYYY-MM-DD` at the top of `CHANGELOG.md`: one paragraph, what changed for users.
-3. Commit and push to main, then `scripts/release.sh`: it checks everything and pushes the tag `vX.Y.Z`.
-4. `.github/workflows/release.yml` tests again, then publishes to PyPI (trusted publishing, the `pypi` environment), pushes `ghcr.io/gabebecker2048/anchorless` (`X.Y.Z`, `X.Y`, `X`, `latest`; amd64 + arm64), and creates the GitHub release from the CHANGELOG entry with the wheel and sdist attached.
+`main` only changes through pull requests that pass CI (`all-green`); nobody pushes to it directly. Work on a branch, `gh pr create`, wait for CI, `gh pr merge --squash`.
+
+Releasing:
+1. On a branch: bump `version` in `pyproject.toml` (the only place it lives; `anchorless.__version__` reads it), run `uv lock`, and add `## X.Y.Z — YYYY-MM-DD` at the top of `CHANGELOG.md` with one sentence (two at most) on what changed for users. The changelog is minimal on purpose.
+2. Merge that PR, update local `main`, then `scripts/release.sh`: it checks everything and pushes the tag `vX.Y.Z`.
+3. `.github/workflows/release.yml` tests again, then publishes to PyPI (trusted publishing, the `pypi` environment), pushes `ghcr.io/gabebecker2048/anchorless` (`X.Y.Z`, `X.Y`, `X`, `latest`; amd64 + arm64), and creates the GitHub release from the CHANGELOG entry with the wheel and sdist attached.
 
 `config.example.toml` and `local.example.toml` are what `anchorless init` writes: the wheel carries them (pyproject force-include), and `examples.py` falls back to the repo root in a checkout. The README embeds `deploy/docker-compose.example.yml` verbatim (a test checks it).
