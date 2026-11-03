@@ -11,6 +11,6 @@ name = "Springfield Daily"
 url = "https://www.example.com/news/local/rss.xml"
 
 [[source]]
-name = "KSPR News"
+name = "Channel 7 Eyewitness News"
 url = "https://www.example.com/feeds/local"
 # compressed = false          # if a feed always times out: some servers hang on gzip
