@@ -1,39 +1,24 @@
-# Example: Anchorless with Intel/AMD hardware encoding.
-# Put your settings in config/config.toml next to this file, and anything personal
-# (like your location, and the settings page's password) in .env:
-#   ANCHORLESS__LOCATION__CITY=...
-#   ANCHORLESS__ADMIN__PASSWORD=<long random>
-# The config folder is writable so the settings page (/settings) can save to it;
-# mount the folder, not the file (a save replaces the file).
 services:
   anchorless:
-    image: ghcr.io/gabebecker2048/anchorless:latest   # or pin a major version: ...:1
-    # build: ..                    # or build it from a checkout of the repo
-    container_name: anchorless
+    image: ghcr.io/gabebecker2048/anchorless:latest   # or :1 to stay on 1.x
     restart: unless-stopped
-    user: "1000:1000"              # owner of ./data on the host
+    user: "1000:1000"            # who owns ./config and ./data (`id -u`:`id -g`)
     ports:
       - "9798:9798"
-    env_file:
-      - path: .env
-        required: false        # optional: start without one
-    environment:
-      ANCHORLESS_CONFIG: /config/config.toml
-      ANCHORLESS__VIDEO__ENCODER: vaapi
     volumes:
-      - ./config:/config                 # config.toml (+ local.toml): read-write
+      - ./config:/config         # config.toml: written on first start, edit it any time
       - ./data:/data
-      - /path/to/music:/music:ro
-    devices:
-      - /dev/dri:/dev/dri
-    group_add:
-      - "992"                      # the host's render group id: getent group render
+      # - /path/to/music:/music:ro    # a folder of MP3s to play underneath
+    # environment:
+    #   ANCHORLESS__LOCATION__CITY: Springfield    # local news (see config.toml)
+    #   ANCHORLESS__ADMIN__PASSWORD: <long random> # turns on the settings page
+    # Hardware encoding (Intel/AMD): uncomment, set the host's render group id
+    # (getent group render), and set encoder = "vaapi" in config.toml.
+    # devices: ["/dev/dri:/dev/dri"]
+    # group_add: ["992"]
+    # Hardening: Anchorless only writes to /config, /data and /tmp.
+    read_only: true
+    tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    # The program itself can't be changed while it runs: Anchorless only ever writes
-    # to /data, /config (the settings page) and /tmp (ffmpeg's music list).
-    read_only: true
-    tmpfs:
-      - /tmp
     mem_limit: 512m
-    cpus: 1.0

@@ -13,14 +13,18 @@ the encoder like any other viewer. (The player is
 
 ## Running it and adding it to your TV
 
+Install it as in the [README](../README.md#install) (Docker, or
+`pip install anchorless`), then:
+
 ```sh
-uv sync
-cp config.example.toml config.toml # [channel] theme, show_on and channel_number are required
-uv run anchorless fetch            # print the current rundown
-uv run anchorless render -o out    # PNG stills of every page type
-uv run anchorless preview -o out/preview.mp4 --seconds 60 --breaking
-uv run anchorless serve            # the channel, on port 9798
+anchorless init                # a starter config.toml, every setting explained
+anchorless fetch               # print the current rundown
+anchorless render -o out       # PNG stills of every page type
+anchorless preview -o out/preview.mp4 --seconds 60 --breaking
+anchorless serve               # the channel, on port 9798
 ```
+
+(In Docker, `docker compose exec anchorless anchorless fetch` and so on.)
 
 Then point your IPTV client at:
 
@@ -146,7 +150,8 @@ core. The viewer limits below are how you cap that. Before you open it up:
 
 ## Configuration
 
-Copy [`config.example.toml`](../config.example.toml) to `config.toml`. In
+`anchorless init` (or the container's first start) writes `config.toml` from
+[`config.example.toml`](../config.example.toml). In
 `[channel]`, `theme`, `show_on` and (for a TV channel) `channel_number` are
 required; everything else is optional, and every setting is documented there. Any setting can also come from the
 environment as `ANCHORLESS__<SECTION>__<KEY>`
@@ -161,8 +166,9 @@ group.
 
 Images are published to `ghcr.io/gabebecker2048/anchorless` for amd64 and arm64:
 `latest` is the newest release, `1` the newest 1.x (no breaking changes), `1.0`
-the newest 1.0.x, and `1.0.0` exactly that release. To build your own instead, swap `image:` for `build: ..` in the compose
-file and run `docker compose build --pull` from a checkout.
+the newest 1.0.x, and `1.0.0` exactly that release. The image keeps its config
+in `/config/config.toml` (written on first start if missing) and its database in
+`/data`. To build your own, swap `image:` for `build: <path to a checkout>`.
 
 ## Sources and fair use
 

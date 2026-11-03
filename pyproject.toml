@@ -4,6 +4,19 @@ version = "1.0.0"
 description = "A 24/7 text newscast for IPTV: headlines in, MPEG-TS out. News without the anchor."
 readme = "README.md"
 license = "MIT"
+authors = [{ name = "Gabe Becker" }]
+keywords = ["news", "iptv", "jellyfin", "plex", "rss", "tv", "pixel-art", "self-hosted"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Video",
+]
 requires-python = ">=3.12"
 dependencies = [
     "aiohttp>=3.10",
@@ -16,6 +29,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/GabeBecker2048/anchorless"
+Changelog = "https://github.com/GabeBecker2048/anchorless/blob/main/CHANGELOG.md"
 Issues = "https://github.com/GabeBecker2048/anchorless/issues"
 
 [project.scripts]
@@ -30,6 +44,14 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/anchorless"]
+
+# The examples live at the top of the repo, and inside the package for `anchorless init`.
+[tool.hatch.build.targets.wheel.force-include]
+"config.example.toml" = "anchorless/config.example.toml"
+"local.example.toml" = "anchorless/local.example.toml"
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/docs/*.gif", "/.github", "/deploy"]
 
 [tool.ruff]
 line-length = 110

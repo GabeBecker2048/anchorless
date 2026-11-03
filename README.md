@@ -1,12 +1,12 @@
 # Anchorless
 
-[![Release](https://img.shields.io/github/v/release/GabeBecker2048/anchorless)](https://github.com/GabeBecker2048/anchorless/releases)
-[![Container image](https://img.shields.io/badge/image-ghcr.io-blue?logo=docker&logoColor=white)](https://github.com/GabeBecker2048/anchorless/pkgs/container/anchorless)
-[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/anchorless)](https://pypi.org/project/anchorless/)
+[![Python versions](https://img.shields.io/pypi/pyversions/anchorless)](https://pypi.org/project/anchorless/)
+[![Docker image](https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker&logoColor=white)](https://github.com/GabeBecker2048/anchorless/pkgs/container/anchorless)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/GabeBecker2048/anchorless/blob/main/LICENSE)
 [![CI](https://github.com/GabeBecker2048/anchorless/actions/workflows/test.yml/badge.svg)](https://github.com/GabeBecker2048/anchorless/actions/workflows/test.yml)
 
-![The Studio look: an empty pixel-art news set. Headlines play on the big screen behind the desk, then a breaking-news alert turns the studio red](docs/studio.gif)
+![The Studio look: an empty pixel-art news set. Headlines play on the big screen behind the desk, then a breaking-news alert turns the studio red](https://raw.githubusercontent.com/GabeBecker2048/anchorless/main/docs/studio.gif)
 
 <sub>Recorded from the real playout, sped up. The headlines and outlets are made up.</sub>
 
@@ -25,37 +25,77 @@ sits at - with a headline crawl, background music and breaking-news alerts.
 - Watch it in a browser too, and change its settings there (optional, password
   protected).
 
-## Quick start
+## Install
 
-With Docker:
+Anchorless runs as a Docker container, or natively with Python 3.12+ and
+[ffmpeg](https://ffmpeg.org/download.html).
+
+### Docker
+
+Save this as `docker-compose.yml` in a new folder:
+
+```yaml
+services:
+  anchorless:
+    image: ghcr.io/gabebecker2048/anchorless:latest   # or :1 to stay on 1.x
+    restart: unless-stopped
+    user: "1000:1000"            # who owns ./config and ./data (`id -u`:`id -g`)
+    ports:
+      - "9798:9798"
+    volumes:
+      - ./config:/config         # config.toml: written on first start, edit it any time
+      - ./data:/data
+      # - /path/to/music:/music:ro    # a folder of MP3s to play underneath
+    # environment:
+    #   ANCHORLESS__LOCATION__CITY: Springfield    # local news (see config.toml)
+    #   ANCHORLESS__ADMIN__PASSWORD: <long random> # turns on the settings page
+    # Hardware encoding (Intel/AMD): uncomment, set the host's render group id
+    # (getent group render), and set encoder = "vaapi" in config.toml.
+    # devices: ["/dev/dri:/dev/dri"]
+    # group_add: ["992"]
+    # Hardening: Anchorless only writes to /config, /data and /tmp.
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+```
+
+Then, in that folder:
 
 ```sh
-mkdir anchorless && cd anchorless && mkdir config data
-base=https://raw.githubusercontent.com/GabeBecker2048/anchorless/main
-curl -fsSL -o docker-compose.yml $base/deploy/docker-compose.example.yml   # then adjust the music folder and encoder
-curl -fsSL -o config/config.toml $base/config.example.toml
+mkdir config data      # so they're yours, not root's
 docker compose up -d
 ```
 
-Or without Docker (needs ffmpeg and [uv](https://docs.astral.sh/uv/)):
+The first start writes `config/config.toml`, with every setting explained.
+Update with `docker compose pull && docker compose up -d`.
+
+### Native
 
 ```sh
-git clone https://github.com/GabeBecker2048/anchorless.git && cd anchorless
-cp config.example.toml config.toml
-uv run anchorless serve
+pip install anchorless   # or: uv tool install anchorless
+anchorless init          # writes config.toml here
+anchorless serve
 ```
 
-Then open `http://<host>:9798/` to watch in a browser, or add it to your TV
-server as an M3U tuner (`http://<host>:9798/playlist.m3u`) with an XMLTV guide
-(`http://<host>:9798/guide.xml`).
+ffmpeg must be on the PATH (`apt install ffmpeg`, `brew install ffmpeg`, ...).
+Run `anchorless serve` from the folder with `config.toml`, or point at it with
+`anchorless -c /path/to/config.toml serve`.
+
+### Watch
+
+Open `http://<host>:9798/` to watch in a browser, or add it to Jellyfin, Plex or
+any IPTV player as an M3U tuner (`http://<host>:9798/playlist.m3u`) with an
+XMLTV guide (`http://<host>:9798/guide.xml`).
 
 ## More
 
-- [The guide](docs/guide.md): Jellyfin setup, themes and channels, the settings
+- [The guide](https://github.com/GabeBecker2048/anchorless/blob/main/docs/guide.md): Jellyfin setup, themes and channels, the settings
   page, hosting publicly, and configuration
-- [`config.example.toml`](config.example.toml): every setting, explained
-- [SECURITY.md](SECURITY.md): reporting a vulnerability
-- [CHANGELOG.md](CHANGELOG.md): what changed in each release
+- [`config.example.toml`](https://github.com/GabeBecker2048/anchorless/blob/main/config.example.toml): every setting, explained (what `anchorless init` writes)
+- [SECURITY.md](https://github.com/GabeBecker2048/anchorless/blob/main/SECURITY.md): reporting a vulnerability
+- [CHANGELOG.md](https://github.com/GabeBecker2048/anchorless/blob/main/CHANGELOG.md): what changed in each release
 
 Anchorless doesn't include music: point it at a folder of MP3s you have the
 right to play (`[audio] music_dir`), or it runs with just its own sound effects.
@@ -64,4 +104,4 @@ right to play (`[audio] music_dir`), or it runs with just its own sound effects.
 
 MIT. The bundled fonts are under the SIL Open Font License and the bundled
 [mpegts.js](https://github.com/xqq/mpegts.js) player under Apache 2.0. Headlines
-belong to their outlets; see [Sources and fair use](docs/guide.md#sources-and-fair-use).
+belong to their outlets; see [Sources and fair use](https://github.com/GabeBecker2048/anchorless/blob/main/docs/guide.md#sources-and-fair-use).

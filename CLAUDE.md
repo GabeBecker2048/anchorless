@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Anchorless: a 24/7 text newscast for IPTV. Public RSS headlines in, an MPEG-TS stream (plus M3U playlist and XMLTV guide) out, for Jellyfin, Plex, Channels DVR or any IPTV player. No browser: Pillow draws every frame, ffmpeg encodes. Python 3.12+, packaged with hatchling, run with uv. Shipped mainly as a container image (it needs ffmpeg).
+Anchorless: a 24/7 text newscast for IPTV. Public RSS headlines in, an MPEG-TS stream (plus M3U playlist and XMLTV guide) out, for Jellyfin, Plex, Channels DVR or any IPTV player. No browser: Pillow draws every frame, ffmpeg encodes. Python 3.12+, packaged with hatchling, run with uv. Shipped on PyPI (`pip install anchorless`, then `anchorless init`, needs ffmpeg) and as a container image.
 
 ## Commands
 
 ```bash
 uv sync                              # create/refresh .venv from uv.lock
-cp config.example.toml config.toml   # config.toml is gitignored
+uv run anchorless init               # writes config.toml (gitignored) from config.example.toml
 uv run anchorless serve              # the station on :9798 (viewer at /, settings at /settings)
 uv run anchorless check-config       # validate the config (never prints secrets)
 uv run anchorless headlines          # every multi-outlet story's versions, scored
@@ -41,4 +41,6 @@ Visual changes (anything in `render/`) can't be judged from tests: render frames
 1. Bump `version` in `pyproject.toml` (the only place it lives; `anchorless.__version__` reads it), run `uv lock`.
 2. Add `## X.Y.Z — YYYY-MM-DD` at the top of `CHANGELOG.md`: one paragraph, what changed for users.
 3. Commit and push to main, then `scripts/release.sh`: it checks everything and pushes the tag `vX.Y.Z`.
-4. `.github/workflows/release.yml` builds and pushes `ghcr.io/gabebecker2048/anchorless` (`X.Y.Z`, `X.Y`, `X`, `latest`; amd64 + arm64) and creates the GitHub release from the CHANGELOG entry.
+4. `.github/workflows/release.yml` tests again, then publishes to PyPI (trusted publishing, the `pypi` environment), pushes `ghcr.io/gabebecker2048/anchorless` (`X.Y.Z`, `X.Y`, `X`, `latest`; amd64 + arm64), and creates the GitHub release from the CHANGELOG entry with the wheel and sdist attached.
+
+`config.example.toml` and `local.example.toml` are what `anchorless init` writes: the wheel carries them (pyproject force-include), and `examples.py` falls back to the repo root in a checkout. The README embeds `deploy/docker-compose.example.yml` verbatim (a test checks it).

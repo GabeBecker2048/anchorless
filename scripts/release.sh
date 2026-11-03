@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Cut a release of the version in pyproject.toml: check everything, then push an
 # annotated tag vX.Y.Z. GitHub Actions (.github/workflows/release.yml) does the rest:
-# the container image on ghcr.io and the GitHub release, with the CHANGELOG entry
-# as its notes. No tokens are needed here.
+# PyPI, the container image on ghcr.io and the GitHub release, with the CHANGELOG
+# entry as its notes. No tokens are needed here.
 #
 # Before running: bump `version` in pyproject.toml, run `uv lock`, and add a
 # "## X.Y.Z — YYYY-MM-DD" section to the top of CHANGELOG.md. Commit and push.

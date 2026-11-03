@@ -256,8 +256,10 @@ def _rss(name: str, url: str, scope: Scope = "national", category: str = "genera
 
 
 def default_sources() -> list[SourceConfig]:
-    """Major outlets' public RSS feeds, checked working on 2026-11-01 (PBS NewsHour, NPR
-    politics and The Washington Post added 2026-11-02)."""
+    """Major outlets' public RSS feeds, checked working on 2026-11-01 (PBS NewsHour and
+    NPR politics added 2026-11-02). Not here: The Washington Post (its feed server has
+    answered 502 since mid-October 2026; its newer feeds only answer browsers) and AP
+    (no public feed)."""
     nyt = "https://rss.nytimes.com/services/xml/rss/nyt/"
     cnbc = "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id="
     return [
@@ -284,12 +286,6 @@ def default_sources() -> list[SourceConfig]:
         _rss("PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/politics"),
         _rss("PBS NewsHour", "https://www.pbs.org/newshour/feeds/rss/world", "world"),
         _rss("NPR", "https://feeds.npr.org/1014/rss.xml"),                    # politics
-        # The Washington Post: its feed server answered 502 on 2026-11-02 (listed as
-        # working in September); these recover on their own when it does.
-        _rss("The Washington Post", "https://feeds.washingtonpost.com/rss/national"),
-        _rss("The Washington Post", "https://feeds.washingtonpost.com/rss/politics"),
-        _rss("The Washington Post", "https://feeds.washingtonpost.com/rss/world", "world"),
-        _rss("The Washington Post", "https://feeds.washingtonpost.com/rss/business", category="business"),
         # /select/ is CNBC's shopping and credit-card advice, not news.
         _rss("CNBC", cnbc + "10001147", category="business", exclude=["/select/"]),
         _rss("CNBC", cnbc + "100003114", category="business", exclude=["/select/"]),
@@ -318,7 +314,7 @@ class ExtraChannelConfig(_ChannelSettings):
 
 
 class DataConfig(_Model):
-    dir: str = "data"
+    dir: str = "data"          # relative to the config file's folder (or the working folder)
 
 
 class WebConfig(_Model):
@@ -542,13 +538,16 @@ def parse_config(text: str, environ: dict[str, str], *, path: str | Path | None 
     disabled = set(feeds.get("disabled") or [])
     raw["source"] = [{**s, "enabled": False} if s.get("url") in disabled else s for s in sources]
     try:
-        return Config.model_validate(raw)
+        cfg = Config.model_validate(raw)
     except ValidationError as err:
         lines = [f"{path or 'config'}: invalid settings"]
         for e in err.errors():
             where = ".".join(str(p) for p in e["loc"]) or "(top level)"
             lines.append(f"  {where}: {e['msg']}")
         raise ConfigError("\n".join(lines)) from err
+    if path is not None and not Path(cfg.data.dir).is_absolute():
+        cfg.data.dir = str(Path(path).parent / cfg.data.dir)      # next to the config file
+    return cfg
 
 
 def config_path(environ: dict[str, str] | None = None) -> Path | None:

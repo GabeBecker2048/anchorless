@@ -43,7 +43,17 @@ jobs:
           push: false
           tags: anchorless:ci
           load: true
-      - run: docker run --rm anchorless:ci anchorless --version
+      - name: The compose file's first start writes a config and serves
+        run: |
+          mkdir -p /tmp/ci/config /tmp/ci/data && cd /tmp/ci
+          sed 's|ghcr.io/gabebecker2048/anchorless:latest|anchorless:ci|; s|"1000:1000"|"'"$(id -u):$(id -g)"'"|' \
+            "$GITHUB_WORKSPACE/deploy/docker-compose.example.yml" > docker-compose.yml
+          docker compose up -d
+          for i in $(seq 30); do curl -fsS localhost:9798/health && break; sleep 2; done
+          test -s config/config.toml && test -s data/anchorless.sqlite3 -o -d data
+          curl -fsS localhost:9798/playlist.m3u | grep -q live.ts
+          docker compose logs
+          docker compose down
 
   # A single check for branch protection to require, so the rule doesn't have to
   # name every matrix job.
