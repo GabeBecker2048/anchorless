@@ -2,7 +2,7 @@
 name = "anchorless"
 version = "1.0.0"
 description = "A 24/7 text newscast for IPTV: headlines in, MPEG-TS out. News without the anchor."
-readme = "README.md"
+dynamic = ["readme"]
 license = "MIT"
 authors = [{ name = "Gabe Becker" }]
 keywords = ["news", "iptv", "jellyfin", "plex", "rss", "tv", "pixel-art", "self-hosted"]
@@ -39,8 +39,24 @@ anchorless = "anchorless.cli:main"
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-fancy-pypi-readme"]
 build-backend = "hatchling.build"
+
+# PyPI shows the README, but can't follow its relative links and images:
+# make them absolute there. (On GitHub they stay relative, which works.)
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\]\(docs/studio\.gif\)'
+replacement = '](https://raw.githubusercontent.com/GabeBecker2048/anchorless/main/docs/studio.gif)'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\]\((?!https?://|#)([^)]+)\)'
+replacement = '](https://github.com/GabeBecker2048/anchorless/blob/main/\1)'
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/anchorless"]
