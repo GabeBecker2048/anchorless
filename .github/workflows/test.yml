@@ -1,4 +1,4 @@
-name: test
+name: tests
 
 on:
   push:
@@ -10,6 +10,10 @@ permissions:
 
 jobs:
   test:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -17,6 +21,34 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run pytest -q
+
+  # The container image builds (amd64 only here; releases also build arm64).
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: anchorless:ci
+          load: true
+      - run: docker run --rm anchorless:ci anchorless --version
+
+  # A single check for branch protection to require, so the rule doesn't have to
+  # name every matrix job.
+  all-green:
+    needs: [test, docker]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.test.result }}" = "success" && test "${{ needs.docker.result }}" = "success"
