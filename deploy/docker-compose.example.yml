@@ -7,7 +7,7 @@
 # mount the folder, not the file (a save replaces the file).
 services:
   anchorless:
-    image: ghcr.io/gabebecker2048/anchorless:latest   # or a version: ...:0.1
+    image: ghcr.io/gabebecker2048/anchorless:latest   # or pin a major version: ...:1
     # build: ..                    # or build it from a checkout of the repo
     container_name: anchorless
     restart: unless-stopped

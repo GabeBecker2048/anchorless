@@ -17,7 +17,7 @@ Only the latest release (and `main`) gets security fixes.
 
 | Version | Supported |
 |---|---|
-| 0.1.x | yes |
+| 1.x | yes |
 
 ## What counts
 

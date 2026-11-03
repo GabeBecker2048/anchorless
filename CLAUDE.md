@@ -41,4 +41,4 @@ Visual changes (anything in `render/`) can't be judged from tests: render frames
 1. Bump `version` in `pyproject.toml` (the only place it lives; `anchorless.__version__` reads it), run `uv lock`.
 2. Add `## X.Y.Z — YYYY-MM-DD` at the top of `CHANGELOG.md`: one paragraph, what changed for users.
 3. Commit and push to main, then `scripts/release.sh`: it checks everything and pushes the tag `vX.Y.Z`.
-4. `.github/workflows/release.yml` builds and pushes `ghcr.io/gabebecker2048/anchorless` (`X.Y.Z`, `X.Y`, `latest`; amd64 + arm64) and creates the GitHub release from the CHANGELOG entry.
+4. `.github/workflows/release.yml` builds and pushes `ghcr.io/gabebecker2048/anchorless` (`X.Y.Z`, `X.Y`, `X`, `latest`; amd64 + arm64) and creates the GitHub release from the CHANGELOG entry.

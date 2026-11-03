@@ -160,8 +160,8 @@ For hardware encoding, pass `/dev/dri` through and add the host's `render`
 group.
 
 Images are published to `ghcr.io/gabebecker2048/anchorless` for amd64 and arm64:
-`latest` is the newest release, `0.1` the newest 0.1.x, `0.1.0` exactly that
-release. To build your own instead, swap `image:` for `build: ..` in the compose
+`latest` is the newest release, `1` the newest 1.x (no breaking changes), `1.0`
+the newest 1.0.x, and `1.0.0` exactly that release. To build your own instead, swap `image:` for `build: ..` in the compose
 file and run `docker compose build --pull` from a checkout.
 
 ## Sources and fair use
