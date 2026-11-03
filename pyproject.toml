@@ -1,6 +1,6 @@
 [project]
 name = "anchorless"
-version = "0.1.0"
+version = "1.0.0"
 description = "A 24/7 text newscast for IPTV: headlines in, MPEG-TS out. News without the anchor."
 readme = "README.md"
 license = "MIT"

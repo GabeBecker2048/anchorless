@@ -1,5 +1,5 @@
 # Changelog
 
-## 0.1.0 — 2026-11-02
+## 1.0.0 — 2026-11-02
 
 First release: a 24/7 text newscast for Jellyfin, Plex, Channels DVR or any IPTV player. Headlines come in from public RSS feeds (29 built in, from 12 outlets, plus any you add), the same story is grouped across outlets, and a rundown of top stories, local, national, world and business news plays as an MPEG-TS stream with an M3U playlist and XMLTV guide. Breaking news interrupts the rundown when many outlets pick a story up at once (local stories too, with a higher bar). Two looks: the pixel-art **Studio**, an empty news set with a day-night sky, and **Classic** cable-news pages (light, dark, or switching with the time of day). A browser viewer (with HLS for iPhones) and status page, and a password-protected settings page that edits the config file in place. Built to be self-hosted safely: feed fetches can't reach private networks, viewer limits, security headers, a hashed settings password, https-only settings logins and a change history. Frames are drawn in Python and encoded by ffmpeg, with VA-API hardware encoding, and nothing runs while nobody is watching. Published as a container image for amd64 and arm64.
