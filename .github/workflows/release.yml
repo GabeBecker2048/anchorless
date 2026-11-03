@@ -33,6 +33,7 @@ jobs:
           test -s notes.md || { echo "::error::no '## ${version}' section in CHANGELOG.md"; exit 1; }
           echo "VERSION=${version}" >> "$GITHUB_ENV"
 
+      - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked
       - run: uv run ruff check .
