@@ -140,9 +140,9 @@ core. The viewer limits below are how you cap that. Before you open it up:
       non-root user, `read_only: true`, `cap_drop: [ALL]`,
       `no-new-privileges`, and memory and CPU limits.
 - [ ] **Know how to report a problem:** see [SECURITY.md](../SECURITY.md).
-- [ ] **Keep it updated:** rebuild the image now and then
-      (`docker compose build --pull`) for security fixes in the base image,
-      ffmpeg and the Python libraries.
+- [ ] **Keep it updated:** `docker compose pull && docker compose up -d`
+      picks up new releases, with security fixes in the base image, ffmpeg and
+      the Python libraries. Watch the repository's releases to hear about them.
 
 ## Configuration
 
@@ -158,6 +158,11 @@ location in the environment, not in the file.
 See [`deploy/docker-compose.example.yml`](../deploy/docker-compose.example.yml).
 For hardware encoding, pass `/dev/dri` through and add the host's `render`
 group.
+
+Images are published to `ghcr.io/gabebecker2048/anchorless` for amd64 and arm64:
+`latest` is the newest release, `0.1` the newest 0.1.x, `0.1.0` exactly that
+release. To build your own instead, swap `image:` for `build: ..` in the compose
+file and run `docker compose build --pull` from a checkout.
 
 ## Sources and fair use
 
