@@ -16,9 +16,10 @@ uv run anchorless check-config       # validate the config (never prints secrets
 uv run anchorless headlines          # every multi-outlet story's versions, scored
 uv run pytest                        # tests
 uv run ruff check .                  # lint (CI runs both)
+uv run python scripts/record_gif.py  # re-record the README GIF (docs/studio.gif) after a Studio change
 ```
 
-Visual changes (anything in `render/`) can't be judged from tests: render frames and look at them.
+Visual changes (anything in `render/`) can't be judged from tests: render frames and look at them (`uv run anchorless -c config.example.toml render -t studio -o out`). If the Studio look changed, re-record the README GIF with `scripts/record_gif.py`.
 
 ## Architecture
 

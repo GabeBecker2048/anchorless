@@ -211,10 +211,11 @@ class StudioTheme:
     kind = "studio"
     SCALE = 2
     FLOOR_Y = 168
-    # x0, x1, top, bottom, depth. The front face sits left of the screen's centre on
-    # purpose: with its 12 deep top (2 px right per step back), the desk as a whole
-    # reads as centred under the screen (x 213.5).
-    DESK = (116, 296, 176, 212, 12)
+    # x0, x1, top, bottom, depth. The desk sits a little left of where its whole outline
+    # (the front face plus the 24 px its 12 deep top and side reach to the right) would be
+    # centred under the screen (x 213.5): 4 px left of that reads best. Everything on the
+    # desk is placed relative to x0, so it moves with the desk; the chair does not.
+    DESK = (107, 288, 176, 212, 12)
     TANK = (340, 166, 50, 30, 10)            # x, y, w, h, depth (the glass box)
 
     def __init__(self, cfg: Config, channel_name: str | None = None) -> None:
@@ -389,7 +390,6 @@ class StudioTheme:
             _box(d, fx + 3, fy + 3, fx + 3, fy + 20, (70, 70, 90))
             iso_box(d, fx, fy, arm_w, 3, arm_len, CHAIR_HI, CHAIR_DARK, CHAIR_TOP)
 
-        cx = lw // 2
         # The desk.
         dx0, dx1, dtop, dbot, depth = self.DESK
         iso_box(d, dx0, dtop, dx1 - dx0, dbot - dtop, depth, DESK_FRONT, DESK_SIDE, DESK_TOP)
@@ -397,10 +397,10 @@ class StudioTheme:
         _box(d, dx0 + 1, dtop + 1, dx1 - 1, dtop + 3, GOLD)                 # brass trim
         _box(d, dx0 + 1, dbot - 4, dx1 - 1, dbot - 1, DESK_EDGE)
         _box(d, dx0 + 1, dbot - 6, dx1 - 1, dbot - 6, CYAN)                 # LED strip
-        fc = (dx0 + dx1) // 2                                               # the front face's centre
-        _box(d, fc - 44, dtop + 8, fc + 44, dbot - 9, INK)                  # logo panel
-        _box(d, fc - 43, dtop + 9, fc + 43, dbot - 10, RED_DARK)
-        _box(d, fc - 43, dtop + 9, fc + 43, dtop + 10, RED)
+        lp0, lp1 = dx0 + 46, dx1 - 46                                       # logo panel, centred
+        _box(d, lp0, dtop + 8, lp1, dbot - 9, INK)
+        _box(d, lp0 + 1, dtop + 9, lp1 - 1, dbot - 10, RED_DARK)
+        _box(d, lp0 + 1, dtop + 9, lp1 - 1, dtop + 10, RED)
 
         # On the desk: the breaking-news beacon (off), papers, the mic, coffee.
         x0, y0, x1, y1 = self.BEACON
@@ -411,16 +411,16 @@ class StudioTheme:
         _box(d, x0 + 2, y0 + 3, x0 + 3, y1 - 2, (190, 60, 80))                                 # glint
         for yy in range(y0 + 4, y1, 3):                                                        # fresnel ribs
             d.line([(x0 + 5, yy), (x1 - 2, yy)], fill=(110, 16, 34))
-        px_ = 154                                     # the papers: clear of the beacon
+        px_ = dx0 + 38                                # the papers: clear of the beacon
         iso_box(d, px_, dtop - 4, 22, 2, 4, WHITE, (200, 200, 216), (230, 230, 244))
         iso_box(d, px_ + 2, dtop - 7, 20, 2, 4, (236, 236, 248), (190, 190, 206), WHITE)
         # The desk mic, in isometric: a weighted base, a pole and a capsule with a grille.
         MIC, MIC_SIDE, MIC_TOP = (96, 96, 118), (58, 58, 74), (150, 150, 172)
-        # It stays in line with the chair when the desk moves.
-        iso_box(d, cx - 6, dtop - 5, 11, 2, 4, MIC, MIC_SIDE, MIC_TOP)        # base
+        mic_x = dx0 + 91
+        iso_box(d, mic_x, dtop - 5, 11, 2, 4, MIC, MIC_SIDE, MIC_TOP)        # base
         # The pole stands on the middle of the base's top: the front face's centre
         # plus half the base's depth back (2 px right, 1 px up per step back).
-        px0, pb = cx + 3, dtop - 7
+        px0, pb = mic_x + 9, dtop - 7
         _box(d, px0 - 1, pb - 11, px0 + 1, pb, INK)
         _box(d, px0, pb - 11, px0, pb, MIC_TOP)                              # lit side
         # The head is 2 deep, so its front face sits 2 px left of the pole to look centred on it.
@@ -459,8 +459,8 @@ class StudioTheme:
         return img
 
     # The mug stands halfway back on the desk (6 of its 12 steps), not on the front edge.
-    MUG = (270, 157)
-    BEACON = (136, 157, 147, 169)        # the dome on the desk: x0, y0, x1, y1 (logical)
+    MUG = (DESK[0] + 154, 157)
+    BEACON = (DESK[0] + 20, 157, DESK[0] + 31, 169)   # the dome on the desk: x0, y0, x1, y1 (logical)
 
     @cached_property
     def front_big(self) -> Image.Image:
@@ -468,7 +468,7 @@ class StudioTheme:
         d = ImageDraw.Draw(big)
         d.fontmode = "1"
         f = pfont("PressStart2P-Regular", self.px(16))
-        fc = (self.DESK[0] + self.DESK[1]) // 2           # on the logo panel: the desk front's centre
+        fc = (self.DESK[0] + self.DESK[1]) / 2            # on the logo panel: the desk front's centre
         d.text((self.L(fc), self.L(194)), self.channel_name, font=f, fill=GOLD, anchor="mm")
         f = pfont("Silkscreen-Bold", self.px(16))
         d.text((self.L(33), self.L(self.crawl_top + 13)), self.cfg.crawl.label.upper(), font=f,
