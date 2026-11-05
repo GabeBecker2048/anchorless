@@ -42,7 +42,7 @@ Visual changes (anything in `render/`) can't be judged from tests: render frames
 
 Releasing:
 1. On a branch: bump `version` in `pyproject.toml` (the only place it lives; `anchorless.__version__` reads it), run `uv lock`, and add `## X.Y.Z — YYYY-MM-DD` at the top of `CHANGELOG.md` with one sentence (two at most) on what changed for users. The changelog is minimal on purpose.
-2. Merge that PR, update local `main`, then `scripts/release.sh`: it checks everything and pushes the tag `vX.Y.Z`.
+2. Merge that PR, update local `main`, then `scripts/release.sh X.Y.Z` (`--dry-run` to rehearse): it checks the version against `pyproject.toml`, the CHANGELOG section, that you are on `main` level with `origin/main` with a clean tree, that the tag is unused and `uv.lock` is current, then pushes the tag `vX.Y.Z`. It runs no tests; CI did that on the PR, and the release workflow does it again. The script is identical in anchorless, chesssnake and whirligig.
 3. `.github/workflows/release.yml` tests again, then publishes to PyPI (trusted publishing, the `pypi` environment), pushes `ghcr.io/gabebecker2048/anchorless` (`X.Y.Z`, `X.Y`, `X`, `latest`; amd64 + arm64), and creates the GitHub release from the CHANGELOG entry with the wheel and sdist attached.
 
 `config.example.toml` and `local.example.toml` are what `anchorless init` writes: the wheel carries them (pyproject force-include), and `examples.py` falls back to the repo root in a checkout. The README embeds `deploy/docker-compose.example.yml` verbatim (a test checks it).
