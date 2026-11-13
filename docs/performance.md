@@ -6,9 +6,9 @@ title: Performance
 
 - **Nobody watching: almost nothing.** Anchorless fetches feeds every 10
   minutes and otherwise sleeps. No frames are drawn and ffmpeg isn't running.
-- **Each channel being watched: about 30% of one CPU core** at the default
-  854×480, 24 fps, with x264. Ten people watching the *same* channel cost the
-  same as one.
+- **Each channel being watched: one encoder.** How much of a core that takes
+  depends on your CPU (and on the picture size, frame rate and encoder). Ten
+  people watching the *same* channel cost the same as one.
 - **Memory:** the example compose file caps it at 512 MB.
 
 A channel starts when its first viewer tunes in (about 2 seconds) and stops 60

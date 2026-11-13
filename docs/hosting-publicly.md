@@ -8,8 +8,8 @@ tested for.
 
 If you do put it on the internet, the TV side (`/playlist.m3u`, `/guide.xml`,
 `/live.ts`, `/hls/`) and the viewer page stay **open by design**: anyone who can
-reach them can watch, and every channel someone watches costs about 30% of a CPU
-core. The viewer limits are how you cap that.
+reach them can watch, and every channel someone watches costs CPU time. The
+viewer limits are how you cap that.
 
 ## Checklist
 
