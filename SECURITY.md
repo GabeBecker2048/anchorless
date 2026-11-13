@@ -32,7 +32,7 @@ Only the latest release (and `main`) gets security fixes.
 - a stream or request that crashes the server or exhausts its memory despite the
   `[stream]` limits
 
-**Not a vulnerability** - by design (see [Hosting publicly](https://gabebecker2048.github.io/anchorless/hosting-publicly.html) in the docs):
+**Not a vulnerability** - by design (see [Hosting publicly](https://gabebecker.com/anchorless/hosting-publicly.html) in the docs):
 
 - anyone who can reach the TV side (`/playlist.m3u`, `/guide.xml`, `/live.ts`,
   `/hls/`) or the viewer page can watch, and watching costs CPU - that is what
