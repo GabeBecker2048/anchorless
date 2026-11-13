@@ -1,0 +1,22 @@
+# The Anchorless wiki, built by GitHub Pages from /docs on main.
+title: Anchorless
+description: A 24/7 text newscast for Jellyfin, Plex, Channels DVR and any IPTV player.
+baseurl: /anchorless
+url: https://gabebecker2048.github.io
+repository: GabeBecker2048/anchorless
+
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  hard_wrap: false
+  syntax_highlighter: rouge
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+
+exclude:
+  - README.md

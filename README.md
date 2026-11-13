@@ -10,6 +10,8 @@
 
 <sub>Recorded from the real playout, sped up. The headlines and outlets are made up.</sub>
 
+**[Read the docs](https://gabebecker2048.github.io/anchorless/)**: install, local news, channels, every setting.
+
 **News without the anchor.** Anchorless turns news headlines into a 24/7 TV
 channel you can add to Jellyfin, Plex, Channels DVR or any IPTV player: an empty
 pixel-art news set where the news plays on the big screen behind a desk nobody
@@ -87,12 +89,13 @@ Run `anchorless serve` from the folder with `config.toml`, or point at it with
 
 Open `http://<host>:9798/` to watch in a browser, or add it to Jellyfin, Plex or
 any IPTV player as an M3U tuner (`http://<host>:9798/playlist.m3u`) with an
-XMLTV guide (`http://<host>:9798/guide.xml`).
+XMLTV guide (`http://<host>:9798/guide.xml`). Step by step for each app:
+[Watch it](https://gabebecker2048.github.io/anchorless/watching.html).
 
 ## More
 
-- [The guide](https://github.com/GabeBecker2048/anchorless/blob/main/docs/guide.md): Jellyfin setup, themes and channels, the settings
-  page, hosting publicly, and configuration
+- [The docs](https://gabebecker2048.github.io/anchorless/): Jellyfin and other TV apps, local news, feeds,
+  themes and channels, the settings page, hosting publicly, every setting
 - [`config.example.toml`](https://github.com/GabeBecker2048/anchorless/blob/main/config.example.toml): every setting, explained (what `anchorless init` writes)
 - [SECURITY.md](https://github.com/GabeBecker2048/anchorless/blob/main/SECURITY.md): reporting a vulnerability
 - [CHANGELOG.md](https://github.com/GabeBecker2048/anchorless/blob/main/CHANGELOG.md): what changed in each release
@@ -104,4 +107,4 @@ right to play (`[audio] music_dir`), or it runs with just its own sound effects.
 
 MIT. The bundled fonts are under the SIL Open Font License and the bundled
 [mpegts.js](https://github.com/xqq/mpegts.js) player under Apache 2.0. Headlines
-belong to their outlets; see [Sources and fair use](https://github.com/GabeBecker2048/anchorless/blob/main/docs/guide.md#sources-and-fair-use).
+belong to their outlets; see [Sources and fair use](https://gabebecker2048.github.io/anchorless/feeds.html#sources-and-fair-use).
