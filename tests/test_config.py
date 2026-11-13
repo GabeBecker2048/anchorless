@@ -95,12 +95,13 @@ def test_bad_exclude_pattern(tmp_path):
         load_config(p, environ={})
 
 
-def test_readme_shows_the_example_compose_file_verbatim():
+def test_readme_and_docs_show_the_example_compose_file_verbatim():
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
     compose = (root / "deploy" / "docker-compose.example.yml").read_text()
     assert compose in (root / "README.md").read_text()
+    assert compose in (root / "docs" / "install.md").read_text()
 
 
 def test_init_writes_a_working_config(tmp_path):

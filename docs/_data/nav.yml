@@ -1,0 +1,21 @@
+- section: Start here
+  pages:
+    - { title: Home, url: / }
+    - { title: Install, url: /install.html }
+    - { title: Watch it, url: /watching.html }
+- section: Make it yours
+  pages:
+    - { title: Local news, url: /local-news.html }
+    - { title: News sources, url: /feeds.html }
+    - { title: Looks and channels, url: /channels.html }
+    - { title: The newscast, url: /newscast.html }
+    - { title: Settings page, url: /settings-page.html }
+- section: Running it
+  pages:
+    - { title: Performance, url: /performance.html }
+    - { title: Hosting publicly, url: /hosting-publicly.html }
+    - { title: Troubleshooting, url: /troubleshooting.html }
+- section: Reference
+  pages:
+    - { title: Configuration, url: /configuration.html }
+    - { title: Command line, url: /cli.html }
