@@ -34,7 +34,8 @@ Visual changes (anything in `render/`) can't be judged from tests: render frames
 ## Rules
 
 - **No personal or local details in the repo.** Locations and local outlet names live only in a user's `.env` / local feeds file. Test fixtures, examples, screenshots and the README GIF use made-up outlets and headlines.
-- Security behaviour is documented in SECURITY.md and the guide's "Hosting publicly" checklist: keep them true when changing `netguard.py`, `admin.py`, `web.py` or the `[stream]` limits.
+- Security behaviour is documented in SECURITY.md and the docs' checklist (`docs/hosting-publicly.md`): keep them true when changing `netguard.py`, `admin.py`, `web.py` or the `[stream]` limits.
+- `docs/` is the user docs site (Jekyll, built by GitHub Pages from `/docs` on `main`, styled like the Studio web UI; layout in `docs/_layouts/`, nav in `docs/_data/nav.yml`). It is the source of truth for users: how to use Anchorless, never how the code works. Update it in the same PR when a setting, command, default or user-visible behaviour changes. CI's `docs` job builds it with Pages' own builder, checks every internal link (`scripts/check_docs.py`) and uploads the built site as the `docs-site` artifact.
 - No inline script or style in the web pages (the CSP forbids it).
 
 ## Changes and releases
@@ -46,4 +47,4 @@ Releasing:
 2. Merge that PR, update local `main`, then `scripts/release.sh X.Y.Z` (`--dry-run` to rehearse): it checks the version against `pyproject.toml`, the CHANGELOG section, that you are on `main` level with `origin/main` with a clean tree, that the tag is unused and `uv.lock` is current, then pushes the tag `vX.Y.Z`. It runs no tests; CI did that on the PR, and the release workflow does it again. The script is identical in anchorless, chesssnake and whirligig.
 3. `.github/workflows/release.yml` tests again, then publishes to PyPI (trusted publishing, the `pypi` environment), pushes `ghcr.io/gabebecker2048/anchorless` (`X.Y.Z`, `X.Y`, `X`, `latest`; amd64 + arm64), and creates the GitHub release from the CHANGELOG entry with the wheel and sdist attached.
 
-`config.example.toml` and `local.example.toml` are what `anchorless init` writes: the wheel carries them (pyproject force-include), and `examples.py` falls back to the repo root in a checkout. The README embeds `deploy/docker-compose.example.yml` verbatim (a test checks it).
+`config.example.toml` and `local.example.toml` are what `anchorless init` writes: the wheel carries them (pyproject force-include), and `examples.py` falls back to the repo root in a checkout. The README and `docs/install.md` embed `deploy/docker-compose.example.yml` verbatim (a test checks it).
