@@ -35,9 +35,7 @@ nobody sits at, with a headline crawl, background music and breaking-news alerts
 
 ## What you need
 
-- **Docker**, or **Python 3.12+** with [ffmpeg](https://ffmpeg.org/download.html).
-- About 30% of one CPU core for each channel while someone is watching it
-  (none while nobody is). The container image runs on amd64 and arm64.
+- **Docker** (amd64 or arm64), or **Python 3.12+** with [ffmpeg](https://ffmpeg.org/download.html).
 - Optionally, a folder of MP3s to play underneath. Anchorless ships no music.
 
 ## Getting help

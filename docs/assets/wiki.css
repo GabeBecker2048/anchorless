@@ -107,8 +107,6 @@ blockquote.warn::before { content: "HEADS UP"; background: var(--red); color: #f
 .tiles b { display: block; font: 700 13px var(--pixel); color: var(--gold); letter-spacing: 1px; margin-bottom: 4px; }
 .tiles span { font-size: 14.5px; color: var(--muted); }
 
-.edit { margin-top: 34px; padding-top: 12px; border-top: 1px solid var(--line); font: 11px var(--pixel); }
-.edit a { color: var(--muted); }
 
 /* --- footer: the headline crawl --- */
 .crawl { display: flex; align-items: stretch; margin: 18px 0 6px; background: #050817; border: 2px solid #000; outline: 2px solid var(--line); overflow: hidden; }

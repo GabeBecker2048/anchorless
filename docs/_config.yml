@@ -2,7 +2,7 @@
 title: Anchorless
 description: A 24/7 text newscast for Jellyfin, Plex, Channels DVR and any IPTV player.
 baseurl: /anchorless
-url: https://gabebecker2048.github.io
+url: https://gabebecker.com
 repository: GabeBecker2048/anchorless
 
 markdown: kramdown

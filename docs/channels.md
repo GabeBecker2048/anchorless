@@ -76,7 +76,7 @@ the TV guide's channel id the same if you rename it later:
 id = "anchorless.news-2"
 ```
 
-> Each channel being watched costs about 30% of a CPU core, and by default only
+> Each channel being watched runs its own encoder, and by default only
 > two can be on at once (`[stream] max_sessions = 2`). See [Performance](performance.html).
 {: .tip }
 
