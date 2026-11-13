@@ -35,6 +35,7 @@ header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-
 .spacer { flex: 1; }
 .pill { font: 12px var(--pixel); padding: 3px 8px; border-radius: 3px; background: var(--panel-2); color: var(--muted); text-decoration: none; }
 .pill:hover { color: var(--gold); }
+@media (max-width: 600px) { .tag { display: none; } }
 
 .card { background: var(--panel); border: 2px solid var(--line); min-width: 0; }
 
@@ -65,6 +66,9 @@ nav a.on { background: var(--panel-2); border-left-color: var(--red); color: #ff
 .content h2 a.anchor, .content h3 a.anchor { color: inherit; text-decoration: none; }
 .content p, .content ul, .content ol { margin: 10px 0; }
 .content li { margin: 3px 0; }
+.content ul.task-list { list-style: none; padding-left: 4px; }
+.task-list-item-checkbox { appearance: none; width: 12px; height: 12px; margin: 0 8px 0 0; border: 2px solid var(--gold);
+                           background: var(--code-bg); vertical-align: -1px; }
 .content img { max-width: 100%; image-rendering: pixelated; border: 3px solid #000; outline: 2px solid var(--line); display: block; margin: 12px 0; }
 .content hr { border: 0; border-top: 2px solid var(--line); margin: 26px 0; }
 .content strong { color: #fff; }
@@ -74,7 +78,9 @@ code { font: 0.88em var(--mono); background: var(--panel-2); padding: 1px 5px; b
 pre { background: var(--code-bg); border: 2px solid var(--line); box-shadow: 4px 4px 0 #000; padding: 12px 14px; overflow-x: auto;
       font: 13.5px/1.5 var(--mono); margin: 14px 0 18px; }
 pre code { background: none; padding: 0; font: inherit; color: #dfe3ff; overflow-wrap: normal; }
-.highlight { margin: 0; }
+div.highlighter-rouge { margin: 14px 0 18px; }
+div.highlighter-rouge pre, div.highlight { margin: 0; }
+pre, table { scrollbar-color: var(--line) var(--code-bg); }
 kbd { font: 12px var(--pixel); background: var(--panel-2); border: 1px solid var(--line); padding: 0 5px; color: var(--text); }
 
 /* tables: on a phone they scroll inside themselves */
